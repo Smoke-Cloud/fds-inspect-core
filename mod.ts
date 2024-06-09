@@ -1,9 +1,31 @@
+/**
+ * This module contains functions to inspect, test, and summarise FDS input
+ * information
+ * @module
+ *
+ *  * @example
+ * ```ts
+ * import {
+ *   clearSuccessSummary,
+ *   countCells,
+ *   FdsFile,
+ *   Resolution,
+ *   summarise_input,
+ *   verifyInput,
+ * } from "@smoke-cloud/fds-inspect-core";
+ *
+ * verifyInput(fdsData)
+ * ```
+ */
+
+/** Real 3d location */
 export interface Xyz {
   x: number;
   y: number;
   z: number;
 }
 
+/** Real 3d rectilinear bounds */
 export interface Xb {
   x1: number;
   x2: number;
@@ -13,6 +35,7 @@ export interface Xb {
   z2: number;
 }
 
+/** Mesh information */
 export interface Mesh {
   index: number;
   id: string;
@@ -27,6 +50,7 @@ export interface Mesh {
   obsts: Obst[];
 }
 
+/** Reaction information */
 export interface Reac {
   // a: number;
   // auto_ignition_temperature: number;
@@ -77,12 +101,14 @@ export interface Reac {
 //   dz_max: number;
 // }
 
+/** Mesh resolution */
 export interface Resolution {
   dx: number;
   dy: number;
   dz: number;
 }
 
+/** Device information */
 export interface Devc {
   index: number;
   id: string;
@@ -105,6 +131,8 @@ export interface Devc {
   points: DevcPoint[];
 }
 
+/** A point location for a device with some additional properties of the
+ * surrounding cells. */
 export interface DevcPoint {
   i: number;
   j: number;
@@ -113,6 +141,7 @@ export interface DevcPoint {
   init_solid_zplus?: boolean;
 }
 
+/** Surface information */
 export interface Surf {
   index: number;
   id: string;
@@ -124,11 +153,13 @@ export interface Surf {
   volume_flow: number;
 }
 
+/** Hvac node information */
 export interface Hvac {
   vent_id: string;
   vent2_id: string;
 }
 
+/** Property information */
 export interface Prop {
   index: number;
   id: string;
@@ -141,6 +172,7 @@ export interface Prop {
   particle_velocity: number;
 }
 
+/** Particle class information */
 export interface Part {
   index: number;
   id: string;
@@ -155,6 +187,7 @@ export interface Part {
   sampling_factor: number;
 }
 
+/** Root FDS file object */
 export interface FdsFile {
   chid: string;
   ec_ll: number;
@@ -175,6 +208,7 @@ export interface FdsFile {
   reacs: Reac[];
 }
 
+/** Vent information */
 export interface Vent {
   index: number;
   id: string;
@@ -192,6 +226,7 @@ export interface Vent {
   fds_area: number;
 }
 
+/** Obstruction information */
 export interface Obst {
   index: number;
   id: string;
@@ -220,10 +255,12 @@ export interface Obst {
   };
 }
 
+/** The result of a test */
 export interface TestResult {
   message: string;
 }
 
+/** The collection of test results */
 export interface VerificationSummary {
   result: VerificationResult | undefined;
 }
@@ -262,6 +299,10 @@ function verificationResult(
   return { name: a, type, value: b };
 }
 
+/** Given information from an FDS file, run a set of tests.
+ * @param fds_data The JSON object obtained from FDS
+ * @returns A summary of test results
+ */
 export function verifyInput(fds_data: FdsFile): VerificationSummary {
   const value: VerificationResult[] = [
     meshes_overlap_test(fds_data),
@@ -1083,6 +1124,11 @@ function dimensionsMatch(a: Xb, b: Xb): boolean {
     a.z2 === b.z2;
 }
 
+/** Create a new {@link VerificationSummary} without tests that have passed with
+ * success.
+ * @param summary Test results
+ * @returns Test results with successes removed
+ */
 export function clearSuccessSummary(
   summary: VerificationSummary,
 ): VerificationSummary {
@@ -1091,7 +1137,7 @@ export function clearSuccessSummary(
   };
 }
 
-export function clearSuccess(
+function clearSuccess(
   { name, type, value }: VerificationResult,
 ): VerificationResult | undefined {
   let val;
@@ -1451,18 +1497,18 @@ function dump_tests(fds_data: FdsFile): VerificationResult {
 
 type Burner = BurnerObst | BurnerVent;
 
-export interface BurnerObst {
+interface BurnerObst {
   type: "obst";
   object: Obst;
   fds_data: FdsFile;
 }
-export interface BurnerVent {
+interface BurnerVent {
   type: "vent";
   object: Vent;
   fds_data: FdsFile;
 }
 
-export function fuel_area(burner: Burner): number {
+function fuel_area(burner: Burner): number {
   switch (burner.type) {
     case "obst":
       // TODO: currently just assumes zmax is being used
@@ -1483,11 +1529,11 @@ function burnerSurfId(burner: Burner): string | undefined {
   }
 }
 
-export function max_hrr(burner: Burner): number {
+function max_hrr(burner: Burner): number {
   return fuel_area(burner) * hrrpua(burner);
 }
 
-export function hrrpua(burner: Burner): number {
+function hrrpua(burner: Burner): number {
   const surfId = burnerSurfId(burner);
   if (!surfId) return 0.0;
   const surface = burner.fds_data.surfaces.find((surface) =>
@@ -1509,7 +1555,7 @@ function isBurnerSurf(surf: Surf): boolean {
   return surf.mlrpua > 0 || surf.hrrpua > 0;
 }
 
-export function isBurnerObst(fds_data: FdsFile, obst: Obst): boolean {
+function isBurnerObst(fds_data: FdsFile, obst: Obst): boolean {
   const surfaces = [];
   if (obst.surfaces) {
     surfaces.push(obst.surfaces.x_min);
@@ -1548,7 +1594,7 @@ function isBurnerVent(fds_data: FdsFile, vent: Vent): boolean {
   return false;
 }
 
-export function get_burners(fds_data: FdsFile): Burner[] {
+function get_burners(fds_data: FdsFile): Burner[] {
   // Iterate through all the OBSTs and VENTs and determine which ones are
   // burners.
   const burners: Burner[] = [];
@@ -1878,25 +1924,44 @@ function alpha(growthRate: StdGrowthRate): number {
 //     }
 // }
 
+/** A summary of key information about an FDS input file. */
 export interface InputSummary {
+  /** The specified CHID */
   chid: string;
+  /** The specified length of the simulation in seconds */
   simulation_length: number;
+  /** The number of vents and obstructions that produce HRR */
   n_burners: number;
   /** Peak HRR in Watts */
   total_max_hrr: number;
+  /** The heat of combustion in J/kg as calculated from REAC properties */
   heat_of_combustion_calc: number;
+  /** The heat of combustion in J/kg as determined by FDS */
   heat_of_combustion: number;
+  /** Given all of the known burners, what is the peak soot production rate in
+   * kg/s */
   total_soot_production: number;
+  /** The number of sprinklers in the model */
   n_sprinklers: number;
+  /** The activation temperatures of the sprinklers in the model */
   sprinkler_activation_temperatures: number[];
+  /** The number of smoke detectors in the model */
   n_smoke_detectors: number;
+  /** The activation obscurations of the smoke detectors in the model */
   smoke_detector_obscurations: number[];
+  /** The number of extract vents in the model */
   n_extract_vents: number;
+  /** The total extract rate if all vents are at peak flow in m³/s */
   total_extract_rate: number;
+  /** The number of supply vents in the model */
   n_supply_vents: number;
+  /** The total supply rate if all vents are at peak flow in m³/s */
   total_supply_rate: number;
+  /** The total number of meshes */
   n_meshes: number;
+  /** The total number of cells */
   n_cells: number;
+  /** The mesh resolutions */
   mesh_resolutions: Resolution[];
   // ndrs: number[][];
 }
@@ -1961,6 +2026,10 @@ function total_max_hrr(fds_data: FdsFile): number {
   );
 }
 
+/** Create an InputSummay from an FdsFile.
+ * @param fds_data The JSON object obtained from fds.
+ * @returns An input summary
+ */
 export function summarise_input(fds_data: FdsFile): InputSummary {
   const simulation_length = fds_data.time.end - fds_data.time.begin;
   // let ndrs: Vec<Vec<_>> = burners.iter().map(|burner| burner.ndr()).collect();
@@ -2034,6 +2103,10 @@ export function summarise_input(fds_data: FdsFile): InputSummary {
   };
 }
 
+/** Count the total number of cells in the model.
+ * @param fds_data The JSON object from FDS
+ * @returns The total number of cells
+ */
 export function countCells(fds_data: FdsFile): number {
   return fds_data.meshes.reduce(
     (accumulator, mesh) => accumulator + (mesh.ijk.i * mesh.ijk.j * mesh.ijk.k),
