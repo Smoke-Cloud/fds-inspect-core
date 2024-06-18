@@ -35,6 +35,16 @@ export interface Xb {
   z2: number;
 }
 
+/** Integer 3d rectilinear bounds */
+export interface IjkBounds {
+  i_min: number;
+  i_max: number;
+  j_min: number;
+  j_max: number;
+  k_min: number;
+  k_max: number;
+}
+
 /** Mesh information */
 export interface Mesh {
   index: number;
@@ -248,6 +258,7 @@ export interface Obst {
     z1: number;
     z2: number;
   };
+  bounds: IjkBounds;
   fds_area: {
     x: number;
     y: number;
@@ -1964,6 +1975,8 @@ export interface InputSummary {
   /** The mesh resolutions */
   mesh_resolutions: Resolution[];
   // ndrs: number[][];
+  /** Ceiling heights found where the greatest horizontal extent occurs */
+  ceiling_heights: { height: number; area: number }[];
 }
 
 function flowRate(fds_data: FdsFile, vent: Vent): number | undefined {
@@ -2100,6 +2113,7 @@ export function summarise_input(fds_data: FdsFile): InputSummary {
     n_cells: countCells(fds_data),
     mesh_resolutions: fds_data.meshes.map((mesh) => mesh.cell_sizes),
     // ndrs,
+    ceiling_heights: getCeilingHeights(fds_data),
   };
 }
 
@@ -2112,4 +2126,446 @@ export function countCells(fds_data: FdsFile): number {
     (accumulator, mesh) => accumulator + (mesh.ijk.i * mesh.ijk.j * mesh.ijk.k),
     0,
   );
+}
+
+/**
+ * The extent of meshes along an axis
+ */
+export interface Extents {
+  axis: "x" | "y" | "z";
+  areas: { start: number; end: number; area: number }[];
+}
+
+function obstFullHeight(mesh: Mesh, obst: Obst): boolean {
+  return obst.bounds.k_min === 0 && obst.bounds.k_max === mesh.ijk.k;
+}
+
+/**
+ * Is this object flat along any of the listed axes?
+ * @param axes The axis along which to check if the object is flat
+ * @param value The object which has cell-bounds (such as an obstrucion)
+ * @returns Is the object flat?
+ */
+export function obstFlat(
+  axes: ("x" | "y" | "z")[],
+  value: { bounds: IjkBounds },
+): boolean {
+  for (const axis of axes) {
+    if (obstFlatAxis(axis, value)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function obstFlatAxis(
+  axis: "x" | "y" | "z",
+  value: { bounds: IjkBounds },
+): boolean {
+  switch (axis) {
+    case "x":
+      return value.bounds.i_min === value.bounds.i_max;
+    case "y":
+      return value.bounds.j_min === value.bounds.j_max;
+    case "z":
+      return value.bounds.k_min ===
+        value.bounds.k_max;
+  }
+}
+
+/**
+ * Given two regions, see if they overlap.
+ */
+export function dimensionsOverlapXY(
+  a: { x_min: number; x_max: number; y_min: number; y_max: number },
+  b: { x_min: number; x_max: number; y_min: number; y_max: number },
+): boolean {
+  return (a.x_max > b.x_min && a.x_min < b.x_max) &&
+    (a.y_max > b.y_min && a.y_min < b.y_max);
+}
+
+/**
+ * Calculate the extents of meshes along an axis
+ * @param axis The axis along which to calculate
+ * @param meshes The meshes to calculate over
+ * @returns the extents
+ */
+export function extents(
+  axis: "x" | "y" | "z",
+  meshes: Mesh[],
+  opts?: { includeObts?: boolean },
+): Extents {
+  const includeObts = opts?.includeObts ?? true;
+  interface Elem {
+    value: number;
+    area: number;
+  }
+  const elems: Elem[] = [];
+  for (const mesh of meshes) {
+    const meshDimensions = dimensions(axis, mesh);
+    // TODO: Somehow need to account for obstructions that might be removed.
+    const area = meshArea(axis, mesh);
+    if (includeObts) {
+      for (const obst of mesh.obsts) {
+        elems.push({
+          value: dimensions(axis, obst).start,
+          area: -obstArea(axis, obst),
+        });
+        elems.push({
+          value: dimensions(axis, obst).end,
+          area: obstArea(axis, obst),
+        });
+      }
+    }
+    elems.push({
+      value: meshDimensions.start,
+      area: area,
+    });
+    elems.push({
+      value: meshDimensions.end,
+      area: -area,
+    });
+  }
+  elems.sort((a, b) => a.value - b.value);
+  const newElems: Elem[] = [];
+  for (const elem of elems) {
+    const prev = newElems[newElems.length - 1];
+    if (elem.value === prev?.value) {
+      prev.area += elem.area;
+    } else {
+      newElems.push(elem);
+    }
+  }
+  const areasRep: { start: number; end: number; area: number }[] = [];
+  let currentArea = 0;
+  for (let i = 0; i < (newElems.length - 1); i++) {
+    currentArea += newElems[i].area;
+    areasRep.push({
+      start: newElems[i].value,
+      end: newElems[i + 1].value,
+      area: currentArea,
+    });
+  }
+  // remove duplicate areas
+  const areas: { start: number; end: number; area: number }[] = [];
+  for (const a1 of areasRep) {
+    const prev = areas[areas.length - 1];
+    if (a1.area === prev?.area) {
+      prev.end = a1.end;
+    } else {
+      areas.push(a1);
+    }
+  }
+  return { axis, areas };
+}
+
+/**
+ * Given a collection of meshes, what is the bounding box of all meshes
+ * combined. Returns undefined on an empty list.
+ */
+export function boundingExtent(meshes: Mesh[]): Xb | undefined {
+  if (!meshes[0]) return;
+  const current: Xb = {
+    x1: meshes[0].dimensions.x1,
+    x2: meshes[0].dimensions.x2,
+    y1: meshes[0].dimensions.y1,
+    y2: meshes[0].dimensions.y2,
+    z1: meshes[0].dimensions.z1,
+    z2: meshes[0].dimensions.z2,
+  };
+  for (const mesh of meshes) {
+    current.x1 = Math.min(current.x1, mesh.dimensions.x1);
+    current.x2 = Math.max(current.x2, mesh.dimensions.x2);
+    current.y1 = Math.min(current.y1, mesh.dimensions.y1);
+    current.y2 = Math.max(current.y2, mesh.dimensions.y2);
+    current.z1 = Math.min(current.z1, mesh.dimensions.z1);
+    current.z2 = Math.max(current.z2, mesh.dimensions.z2);
+  }
+  return current;
+}
+
+export function dimensionExtent(
+  axis: "x" | "y" | "z",
+  meshes: Mesh[],
+  coord: [number, number],
+): { start: number; end: number; gas: boolean }[] {
+  interface Elem {
+    value: number;
+    area: number;
+  }
+  const extents: { start: number; end: number; gas: boolean }[] = [];
+  for (const mesh of meshes) {
+    // Check that mesh overlaps
+    if (
+      !(
+        (mesh.dimensions.x1 <= coord[0] && mesh.dimensions.x2 >= coord[0]) &&
+        (mesh.dimensions.y1 <= coord[1] && mesh.dimensions.y2 >= coord[1])
+      )
+    ) {
+      continue;
+    }
+    // console.log(mesh.index, mesh.id);
+    const meshDimensions = dimensions(axis, mesh);
+    extents.push({
+      start: meshDimensions.start,
+      end: meshDimensions.end,
+      gas: true,
+    });
+    // Iterate through the obsts, finding those that overlap
+    const overlappingObsts: Obst[] = [];
+    for (const obst of mesh.obsts) {
+      if (
+        (obst.dimensions.x1 <= coord[0] && obst.dimensions.x2 >= coord[0]) &&
+        (obst.dimensions.y1 <= coord[1] && obst.dimensions.y2 >= coord[1])
+      ) {
+        overlappingObsts.push(obst);
+      }
+    }
+    // console.log(overlappingObsts);
+    for (const obst of overlappingObsts) {
+      const obstDims = dimensions(axis, obst);
+      extents.push({
+        start: obstDims.start,
+        end: obstDims.end,
+        gas: false,
+      });
+    }
+  }
+  return extents;
+}
+
+export interface RegionExtents {
+  x_min: number;
+  x_max: number;
+  y_min: number;
+  y_max: number;
+  extents: { start: number; end: number; gas: boolean }[];
+  subs: RegionExtents[];
+}
+
+export function clearHeights(
+  regionExtents: RegionExtents,
+): { height: number; area: number }[] {
+  // TODO: this is incorrect
+  const vals = [];
+  const base = {
+    area: (regionExtents.x_max - regionExtents.x_min) *
+      (regionExtents.y_max - regionExtents.y_min),
+    height: regionExtents.extents.reduce(
+      (acc, succ) => acc + (succ.end - succ.start),
+      0,
+    ),
+  };
+  for (const sub of regionExtents.subs) {
+    const area = (sub.x_max - sub.x_min) * (sub.y_max - sub.y_min);
+    const height = regionExtents.extents.reduce(
+      (acc, succ) => acc + (succ.end - succ.start),
+      0,
+    );
+    base.area -= area;
+    vals.push({ area, height });
+  }
+  vals.push(base);
+  return vals;
+}
+
+function combineRegionExtents(
+  r1: RegionExtents,
+  r2: RegionExtents,
+): RegionExtents[] {
+  // If there is no overlap, do nothing
+  if (!dimensionsOverlapXY(r1, r2)) return [r1, r2];
+  if (
+    r1.x_min === r2.x_min && r1.x_max === r2.x_max && r1.y_min === r2.y_min &&
+    r1.y_max === r2.y_max
+  ) {
+    const extents = [];
+    for (const r1Extent of r1.extents) {
+      extents.push(r1Extent);
+    }
+    for (const r2Extent of r2.extents) {
+      extents.push(r2Extent);
+    }
+    const subs = [];
+    for (const v of r1.subs) {
+      subs.push(v);
+    }
+    for (const v of r2.subs) {
+      subs.push(v);
+    }
+    return [{
+      x_min: r1.x_min,
+      x_max: r1.x_max,
+      y_min: r1.y_min,
+      y_max: r1.y_max,
+      extents,
+      subs,
+    }];
+  }
+  throw new Error("this region combination not supported.");
+}
+
+function splitRegionExtentX(regionExtent: RegionExtents, x: number) {
+  return [
+    {
+      x_min: regionExtent.x_min,
+      x_max: x,
+      y_min: regionExtent.y_min,
+      y_max: regionExtent.y_max,
+      extents: Array.from(regionExtent.extents),
+    },
+    {
+      x_min: x,
+      x_max: regionExtent.x_max,
+      y_min: regionExtent.y_min,
+      y_max: regionExtent.y_max,
+      extents: Array.from(regionExtent.extents),
+    },
+  ];
+}
+function splitRegionExtentY(regionExtent: RegionExtents, y: number) {
+  return [
+    {
+      x_min: regionExtent.x_min,
+      x_max: regionExtent.x_max,
+      y_min: regionExtent.y_min,
+      y_max: y,
+      extents: Array.from(regionExtent.extents),
+    },
+    {
+      x_min: regionExtent.x_min,
+      x_max: regionExtent.x_max,
+      y_min: y,
+      y_max: regionExtent.y_max,
+      extents: Array.from(regionExtent.extents),
+    },
+  ];
+}
+
+function combineGasExtents(
+  g1: { start: number; end: number; gas: boolean },
+  g2: { start: number; end: number; gas: boolean },
+): { start: number; end: number; gas: boolean }[] {
+  const newExtents: { start: number; end: number; gas: boolean }[] = [];
+  if (g1.start === g2.start && g1.end === g2.end) {
+    newExtents.push({ start: g1.start, end: g1.end, gas: g1.gas && g2.gas });
+  } else {
+    newExtents.push(g1);
+    newExtents.push(g2);
+  }
+  return newExtents;
+}
+
+function dimensions(axis: "x" | "y" | "z", value: { dimensions: Xb }) {
+  switch (axis) {
+    case "x":
+      return { start: value.dimensions.x1, end: value.dimensions.x2 };
+    case "y":
+      return { start: value.dimensions.y1, end: value.dimensions.y2 };
+    case "z":
+      return { start: value.dimensions.z1, end: value.dimensions.z2 };
+  }
+}
+
+function obstArea(axis: "x" | "y" | "z", obst: Obst) {
+  switch (axis) {
+    case "x":
+      return obst.fds_area.x;
+    case "y":
+      return obst.fds_area.y;
+    case "z":
+      return obst.fds_area.z;
+  }
+}
+
+function meshArea(axis: "x" | "y" | "z", mesh: Mesh): number {
+  switch (axis) {
+    case "x":
+      return meshAreaX(mesh);
+    case "y":
+      return meshAreaY(mesh);
+    case "z":
+      return meshAreaZ(mesh);
+  }
+}
+
+function meshAreaX(mesh: Mesh): number {
+  return (mesh.dimensions.z2 - mesh.dimensions.z1) *
+    (mesh.dimensions.y2 - mesh.dimensions.y1);
+}
+
+function meshAreaY(mesh: Mesh): number {
+  return (mesh.dimensions.x2 - mesh.dimensions.x1) *
+    (mesh.dimensions.z2 - mesh.dimensions.z1);
+}
+
+function meshAreaZ(mesh: Mesh): number {
+  return (mesh.dimensions.x2 - mesh.dimensions.x1) *
+    (mesh.dimensions.y2 - mesh.dimensions.y1);
+}
+
+function greatestExtent(axis: "x" | "y" | "z", fdsFile: FdsFile) {
+  const exts = extents(axis, fdsFile.meshes ?? []);
+  let greatestExtent = exts.areas[0];
+  for (const ext of exts.areas) {
+    if (ext.area > greatestExtent.area) {
+      greatestExtent = ext;
+    }
+  }
+  return greatestExtent;
+}
+
+export function getCeilingHeights(
+  fdsFile: FdsFile,
+): { height: number; area: number }[] {
+  const g = greatestExtent("z", fdsFile);
+  const avg = (g.end + g.start) / 2;
+  const regionExtents: RegionExtents[] = [];
+  for (const mesh of fdsFile.meshes) {
+    if (mesh.dimensions.z1 <= avg && mesh.dimensions.z2 >= avg) {
+      const meshRegion: RegionExtents = {
+        x_min: mesh.dimensions.x1,
+        x_max: mesh.dimensions.x2,
+        y_min: mesh.dimensions.y1,
+        y_max: mesh.dimensions.y2,
+        extents: [{
+          start: mesh.dimensions.z1,
+          end: mesh.dimensions.z2,
+          gas: true,
+        }],
+        subs: [],
+      };
+      for (const obst of mesh.obsts) {
+        if (obstFlat(["x", "y"], obst)) continue;
+        const elem: RegionExtents = {
+          x_min: obst.dimensions.x1,
+          x_max: obst.dimensions.x2,
+          y_min: obst.dimensions.y1,
+          y_max: obst.dimensions.y2,
+          extents: [{
+            start: obst.dimensions.z1,
+            end: obst.dimensions.z2,
+            gas: false,
+          }],
+          subs: [],
+        };
+        meshRegion.subs.push(elem);
+      }
+      regionExtents.push(meshRegion);
+    }
+  }
+
+  const heights = new Map();
+  for (const re of regionExtents) {
+    for (const h of clearHeights(re)) {
+      const existing = heights.get(h.height);
+      heights.set(h.height, existing ? existing + h.area : h.area);
+    }
+  }
+  const arrHeights = Array.from(heights).map(([a, b]) => ({
+    height: a,
+    area: b,
+  }));
+  arrHeights.sort((a, b) => b.area - a.area);
+  return arrHeights;
 }
