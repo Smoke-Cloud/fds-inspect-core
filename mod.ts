@@ -336,7 +336,7 @@ export function verifyInput(fds_data: FdsFile): VerificationSummary {
   };
 }
 
-function isLinkedToVent(vent: Vent, hvac: Hvac): boolean {
+function _isLinkedToVent(vent: Vent, hvac: Hvac): boolean {
   if (vent.id) {
     return hvac.vent_id === vent.id || hvac.vent2_id === vent.id;
   } else {
@@ -1895,7 +1895,7 @@ enum StdGrowthRate {
   // Custom(number),
 }
 
-function alpha(growthRate: StdGrowthRate): number {
+function _alpha(growthRate: StdGrowthRate): number {
   switch (growthRate) {
     case StdGrowthRate.NFPASlow:
       return 1055.0 / 600 ** 2;
@@ -2136,10 +2136,6 @@ export interface Extents {
   areas: { start: number; end: number; area: number }[];
 }
 
-function obstFullHeight(mesh: Mesh, obst: Obst): boolean {
-  return obst.bounds.k_min === 0 && obst.bounds.k_max === mesh.ijk.k;
-}
-
 /**
  * Is this object flat along any of the listed axes?
  * @param axes The axis along which to check if the object is flat
@@ -2371,93 +2367,6 @@ export function clearHeights(
   return vals;
 }
 
-function combineRegionExtents(
-  r1: RegionExtents,
-  r2: RegionExtents,
-): RegionExtents[] {
-  // If there is no overlap, do nothing
-  if (!dimensionsOverlapXY(r1, r2)) return [r1, r2];
-  if (
-    r1.x_min === r2.x_min && r1.x_max === r2.x_max && r1.y_min === r2.y_min &&
-    r1.y_max === r2.y_max
-  ) {
-    const extents = [];
-    for (const r1Extent of r1.extents) {
-      extents.push(r1Extent);
-    }
-    for (const r2Extent of r2.extents) {
-      extents.push(r2Extent);
-    }
-    const subs = [];
-    for (const v of r1.subs) {
-      subs.push(v);
-    }
-    for (const v of r2.subs) {
-      subs.push(v);
-    }
-    return [{
-      x_min: r1.x_min,
-      x_max: r1.x_max,
-      y_min: r1.y_min,
-      y_max: r1.y_max,
-      extents,
-      subs,
-    }];
-  }
-  throw new Error("this region combination not supported.");
-}
-
-function splitRegionExtentX(regionExtent: RegionExtents, x: number) {
-  return [
-    {
-      x_min: regionExtent.x_min,
-      x_max: x,
-      y_min: regionExtent.y_min,
-      y_max: regionExtent.y_max,
-      extents: Array.from(regionExtent.extents),
-    },
-    {
-      x_min: x,
-      x_max: regionExtent.x_max,
-      y_min: regionExtent.y_min,
-      y_max: regionExtent.y_max,
-      extents: Array.from(regionExtent.extents),
-    },
-  ];
-}
-function splitRegionExtentY(regionExtent: RegionExtents, y: number) {
-  return [
-    {
-      x_min: regionExtent.x_min,
-      x_max: regionExtent.x_max,
-      y_min: regionExtent.y_min,
-      y_max: y,
-      extents: Array.from(regionExtent.extents),
-    },
-    {
-      x_min: regionExtent.x_min,
-      x_max: regionExtent.x_max,
-      y_min: y,
-      y_max: regionExtent.y_max,
-      extents: Array.from(regionExtent.extents),
-    },
-  ];
-}
-
-function combineGasExtents(
-  g1: { start: number; end: number; gas: boolean },
-  g2: { start: number; end: number; gas: boolean },
-): { start: number; end: number; gas: boolean }[] {
-  const newExtents: { start: number; end: number; gas: boolean }[] = [];
-  if (g1.start === g2.start && g1.end === g2.end) {
-    newExtents.push({ start: g1.start, end: g1.end, gas: g1.gas && g2.gas });
-  } else {
-    newExtents.push(g1);
-    newExtents.push(g2);
-  }
-  return newExtents;
-}
-
 function dimensions(axis: "x" | "y" | "z", value: { dimensions: Xb }) {
   switch (axis) {
     case "x":
@@ -2506,7 +2415,11 @@ function meshAreaZ(mesh: Mesh): number {
     (mesh.dimensions.y2 - mesh.dimensions.y1);
 }
 
-export function greatestExtent(axis: "x" | "y" | "z", fdsFile: FdsFile) {
+export function greatestExtent(axis: "x" | "y" | "z", fdsFile: FdsFile): {
+  start: number;
+  end: number;
+  area: number;
+} {
   const exts = extents(axis, fdsFile.meshes ?? []);
   let greatestExtent = exts.areas[0];
   for (const ext of exts.areas) {
