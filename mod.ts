@@ -2206,7 +2206,7 @@ export function extents(
     // TODO: Somehow need to account for obstructions that might be removed.
     const area = meshArea(axis, mesh);
     if (includeObts) {
-      for (const obst of mesh.obsts) {
+      for (const obst of mesh.obsts ?? []) {
         elems.push({
           value: dimensions(axis, obst).start,
           area: -obstArea(axis, obst),
@@ -2313,7 +2313,7 @@ export function dimensionExtent(
     });
     // Iterate through the obsts, finding those that overlap
     const overlappingObsts: Obst[] = [];
-    for (const obst of mesh.obsts) {
+    for (const obst of mesh.obsts ?? []) {
       if (
         (obst.dimensions.x1 <= coord[0] && obst.dimensions.x2 >= coord[0]) &&
         (obst.dimensions.y1 <= coord[1] && obst.dimensions.y2 >= coord[1])
@@ -2344,27 +2344,29 @@ export interface RegionExtents {
 }
 
 export function clearHeights(
-  regionExtents: RegionExtents,
+  regionExtents: CellMap,
 ): { height: number; area: number }[] {
   // TODO: this is incorrect
   const vals = [];
   const base = {
-    area: (regionExtents.x_max - regionExtents.x_min) *
-      (regionExtents.y_max - regionExtents.y_min),
+    area:
+      (regionExtents.mesh.dimensions.x2 - regionExtents.mesh.dimensions.x1) *
+      (regionExtents.mesh.dimensions.y2 - regionExtents.mesh.dimensions.y1),
     height: regionExtents.extents.reduce(
-      (acc, succ) => acc + (succ.end - succ.start),
+      (acc, succs) =>
+        acc + succs.reduce((ac, succ) => ac + (succ.end - succ.start), 0),
       0,
     ),
   };
-  for (const sub of regionExtents.subs) {
-    const area = (sub.x_max - sub.x_min) * (sub.y_max - sub.y_min);
-    const height = regionExtents.extents.reduce(
-      (acc, succ) => acc + (succ.end - succ.start),
-      0,
-    );
-    base.area -= area;
-    vals.push({ area, height });
-  }
+  // for (const sub of regionExtents.extents) {
+  //   const area = (sub.x_max - sub.x_min) * (sub.y_max - sub.y_min);
+  //   const height = regionExtents.extents.reduce(
+  //     (acc, succ) => acc + (succ.end - succ.start),
+  //     0,
+  //   );
+  //   base.area -= area;
+  //   vals.push({ area, height });
+  // }
   vals.push(base);
   return vals;
 }
@@ -2504,7 +2506,7 @@ function meshAreaZ(mesh: Mesh): number {
     (mesh.dimensions.y2 - mesh.dimensions.y1);
 }
 
-function greatestExtent(axis: "x" | "y" | "z", fdsFile: FdsFile) {
+export function greatestExtent(axis: "x" | "y" | "z", fdsFile: FdsFile) {
   const exts = extents(axis, fdsFile.meshes ?? []);
   let greatestExtent = exts.areas[0];
   for (const ext of exts.areas) {
@@ -2520,40 +2522,7 @@ export function getCeilingHeights(
 ): { height: number; area: number }[] {
   const g = greatestExtent("z", fdsFile);
   const avg = (g.end + g.start) / 2;
-  const regionExtents: RegionExtents[] = [];
-  for (const mesh of fdsFile.meshes) {
-    if (mesh.dimensions.z1 <= avg && mesh.dimensions.z2 >= avg) {
-      const meshRegion: RegionExtents = {
-        x_min: mesh.dimensions.x1,
-        x_max: mesh.dimensions.x2,
-        y_min: mesh.dimensions.y1,
-        y_max: mesh.dimensions.y2,
-        extents: [{
-          start: mesh.dimensions.z1,
-          end: mesh.dimensions.z2,
-          gas: true,
-        }],
-        subs: [],
-      };
-      for (const obst of mesh.obsts) {
-        if (obstFlat(["x", "y"], obst)) continue;
-        const elem: RegionExtents = {
-          x_min: obst.dimensions.x1,
-          x_max: obst.dimensions.x2,
-          y_min: obst.dimensions.y1,
-          y_max: obst.dimensions.y2,
-          extents: [{
-            start: obst.dimensions.z1,
-            end: obst.dimensions.z2,
-            gas: false,
-          }],
-          subs: [],
-        };
-        meshRegion.subs.push(elem);
-      }
-      regionExtents.push(meshRegion);
-    }
-  }
+  const regionExtents = getRegionExtents(fdsFile, avg);
 
   const heights = new Map();
   for (const re of regionExtents) {
@@ -2568,4 +2537,80 @@ export function getCeilingHeights(
   }));
   arrHeights.sort((a, b) => b.area - a.area);
   return arrHeights;
+}
+
+// export class RegionPartition {
+//   private regions: RegionExtents[] = [];
+//   constructor(base: RegionExtents) {
+//     this.regions.push(base);
+//   }
+//   // Add a region making sure there is no overlap in the x-dimension
+//   addRegion(region: RegionExtents) {
+//     // Special case above or below.
+//     if (
+//       (region.x_max <= this.regions[0].x_min) ||
+//       (region.x_min >= this.regions[0].x_max)
+//     ) {
+//       this.regions.sort((a, b) => a.x_min - b.x_min);
+//     } else {
+//       console.error(this.regions);
+//       console.error(region);
+//       throw new Error("overlapping");
+//     }
+//   }
+// }
+
+export class CellMap {
+  public extents: { start: number; end: number }[][] = [];
+  public i_max: number;
+  public j_max: number;
+  public k_max: number;
+  constructor(public mesh: Mesh) {
+    this.i_max = mesh.ijk.i;
+    this.j_max = mesh.ijk.j;
+    this.k_max = mesh.ijk.k;
+  }
+  addExtent(i: number, j: number, extent: { start: number; end: number }) {
+    const n = this.fromIJ(i, j);
+    const exs = this.extents[n];
+    if (exs) {
+      exs.push(extent);
+    } else {
+      this.extents[n] = [extent];
+    }
+  }
+  toIJ(n: number): { i: number; j: number } {
+    const i = Math.floor(n / this.i_max);
+    const j = n % this.i_max;
+    return { i, j };
+  }
+  fromIJ(i: number, j: number): number {
+    return this.i_max * i + j;
+  }
+}
+
+export function getRegionExtents(
+  fdsFile: FdsFile,
+  val: number,
+): CellMap[] {
+  const regionExtents: CellMap[] = [];
+  for (const mesh of fdsFile.meshes) {
+    if (mesh.dimensions.z1 <= val && mesh.dimensions.z2 >= val) {
+      const cellMap = new CellMap(mesh);
+      for (const obst of mesh.obsts ?? []) {
+        if (obstFlat(["x", "y"], obst)) continue;
+        // iterate through ijk
+        for (let i = obst.bounds.i_min; i < obst.bounds.i_max; i++) {
+          for (let j = obst.bounds.j_min; j < obst.bounds.j_max; j++) {
+            cellMap.addExtent(i, j, {
+              start: obst.bounds.k_min,
+              end: obst.bounds.k_max,
+            });
+          }
+        }
+      }
+      regionExtents.push(cellMap);
+    }
+  }
+  return regionExtents;
 }
