@@ -26,7 +26,7 @@ export interface IjkBounds {
 }
 
 /** Mesh information */
-export interface Mesh {
+export interface IMesh {
   index: number;
   id: string;
   ijk: {
@@ -36,8 +36,27 @@ export interface Mesh {
   };
   dimensions: Xb;
   cell_sizes: Resolution;
-  vents: Vent[];
-  obsts: Obst[];
+  vents: IVent[];
+  obsts: IObst[];
+}
+
+export class Mesh implements IMesh {
+  public index: number;
+  public id: string;
+  public ijk: { i: number; j: number; k: number };
+  public dimensions: Xb;
+  public cell_sizes: Resolution;
+  public vents: Vent[];
+  public obsts: Obst[];
+  constructor(public fdsData: FdsData, mesh: IMesh) {
+    this.index = mesh.index;
+    this.id = mesh.id;
+    this.ijk = mesh.ijk;
+    this.dimensions = mesh.dimensions;
+    this.cell_sizes = mesh.cell_sizes;
+    this.vents = mesh.vents.map((vent) => new Vent(this.fdsData, vent));
+    this.obsts = mesh.obsts.map((obst) => new Obst(this.fdsData, obst));
+  }
 }
 
 /** Reaction information */
@@ -99,7 +118,7 @@ export interface Resolution {
 }
 
 /** Device information */
-export interface Devc {
+export interface IDevc {
   index: number;
   id: string;
   label: string;
@@ -121,6 +140,102 @@ export interface Devc {
   points: DevcPoint[];
 }
 
+function pointBeneathCeiling(point: DevcPoint): boolean {
+  return point.init_solid_zplus !== false;
+}
+
+export class Devc implements IDevc {
+  public index: number;
+  public id: string;
+  public label: string;
+  public spatial_statistic: string;
+  public spec_id: string;
+  public prop_id: string;
+  public mesh: number;
+  public setpoint: number;
+  public dimensions: {
+    x1: number;
+    x2: number;
+    y1: number;
+    y2: number;
+    z1: number;
+    z2: number;
+  };
+  public location: Xyz;
+  public quantities: string[];
+  public points: DevcPoint[];
+  constructor(public fdsData: FdsData, devc: IDevc) {
+    this.index = devc.index;
+    this.id = devc.id;
+    this.label = devc.label;
+    this.spatial_statistic = devc.spatial_statistic;
+    this.spec_id = devc.spec_id;
+    this.prop_id = devc.prop_id;
+    this.mesh = devc.mesh;
+    this.setpoint = devc.setpoint;
+    this.dimensions = devc.dimensions;
+    this.location = devc.location;
+    this.quantities = devc.quantities;
+    this.points = devc.points;
+  }
+  // TODO: check for flow
+  public get devcIsSprinkler(): boolean {
+    if (this.prop_id) {
+      const prop = this.fdsData.props.find((prop) => prop.id === this.prop_id);
+      if (!prop) return false;
+      return prop.isSprinklerProp;
+    } else {
+      return false;
+    }
+  }
+
+  public get devcIsThermalDetector(): boolean {
+    if (this.prop_id) {
+      const prop = this.fdsData.props.find((prop) => prop.id === this.prop_id);
+      if (!prop) return false;
+      return prop.isThermalDetectorProp;
+    } else {
+      return false;
+    }
+  }
+  public devcIsSmokeDetector(): boolean {
+    if (this.prop_id) {
+      const prop = this.fdsData.props.find((prop) => prop.id === this.prop_id);
+      if (!prop) return false;
+      return prop.isSmokeDetectorProp;
+    } else {
+      return false;
+    }
+  }
+
+  public get isFlowDevice(): boolean {
+    const firstQuantity = this.quantities[0];
+    if (!firstQuantity) return false;
+    return firstQuantity === "VOLUME FLOW" ||
+      (firstQuantity === "NORMAL VELOCITY" &&
+        this.spatial_statistic === "SURFACE INTEGRAL");
+  }
+
+  /// Check if the cell directly above a device is solid. This is useful to make
+  /// sure that sprinklers and smoke detectors are directly beneath the a ceiling.
+  ///
+  /// TODO: This is more complicated as it may not be a solid cell, but a solid
+  /// surface. This is exacerbated by being on a mesh boundary.
+  public get devcBeneathCeiling(): boolean {
+    return this.points.every(pointBeneathCeiling);
+  }
+  /// Check if a device is stuck in a solid. Returns Nothing if it's not a
+  /// sensible question (e.g. it is not a point device).
+  public get stuckInSolid(): boolean {
+    for (const point of this.points) {
+      if (point.init_solid) {
+        return true;
+      }
+    }
+    return false;
+  }
+}
+
 /** A point location for a device with some additional properties of the
  * surrounding cells. */
 export interface DevcPoint {
@@ -132,7 +247,7 @@ export interface DevcPoint {
 }
 
 /** Surface information */
-export interface Surf {
+export interface ISurf {
   index: number;
   id: string;
   hrrpua: number;
@@ -143,6 +258,36 @@ export interface Surf {
   volume_flow: number;
 }
 
+export class Surf implements ISurf {
+  public index: number;
+  public id: string;
+  public hrrpua: number;
+  public tmp_front?: number | undefined;
+  public tau_q: number;
+  public mlrpua: number;
+  public vel: number;
+  public volume_flow: number;
+  constructor(public fdsData: FdsData, surf: ISurf) {
+    this.index = surf.index;
+    this.id = surf.id;
+    this.hrrpua = surf.hrrpua;
+    this.tmp_front = surf.tmp_front;
+    this.tau_q = surf.tau_q;
+    this.mlrpua = surf.mlrpua;
+    this.vel = surf.vel;
+    this.volume_flow = surf.volume_flow;
+  }
+  get isBurner(): boolean {
+    return this.mlrpua > 0 || this.hrrpua > 0;
+  }
+  get hasFlow(): boolean {
+    return this.mlrpua != null ||
+      this.hrrpua != null ||
+      this.vel != null ||
+      this.volume_flow != null;
+  }
+}
+
 /** Hvac node information */
 export interface Hvac {
   vent_id: string;
@@ -150,7 +295,7 @@ export interface Hvac {
 }
 
 /** Property information */
-export interface Prop {
+export interface IProp {
   index: number;
   id: string;
   part_id: string;
@@ -160,6 +305,41 @@ export interface Prop {
   activation_obscuration: number;
   flow_rate: number;
   particle_velocity: number;
+}
+
+export class Prop implements IProp {
+  public index: number;
+  public id: string;
+  public part_id: string;
+  public spec_id: string;
+  public quantity: string;
+  public activation_temperature: number;
+  public activation_obscuration: number;
+  public flow_rate: number;
+  public particle_velocity: number;
+  constructor(public fdsData: FdsData, prop: IProp) {
+    this.index = prop.index;
+    this.id = prop.id;
+    this.part_id = prop.part_id;
+    this.spec_id = prop.spec_id;
+    this.quantity = prop.quantity;
+    this.activation_temperature = prop.activation_temperature;
+    this.activation_obscuration = prop.activation_obscuration;
+    this.flow_rate = prop.flow_rate;
+    this.particle_velocity = prop.particle_velocity;
+  }
+
+  public get isThermalDetectorProp(): boolean {
+    return this.quantity === "LINK TEMPERATURE";
+  }
+
+  public get isSprinklerProp(): boolean {
+    return this.quantity === "SPRINKLER LINK TEMPERATURE";
+  }
+
+  public get isSmokeDetectorProp(): boolean {
+    return this.quantity === "CHAMBER OBSCURATION";
+  }
 }
 
 /** Particle class information */
@@ -190,16 +370,16 @@ export interface FdsFile {
     end: number;
   };
   surfaces: Surf[];
-  meshes: Mesh[];
+  meshes: IMesh[];
   devices: Devc[];
   hvac: Hvac[];
-  props: Prop[];
+  props: IProp[];
   parts: Part[];
   reacs: Reac[];
 }
 
 /** Vent information */
-export interface Vent {
+export interface IVent {
   index: number;
   id: string;
   surface: string;
@@ -216,8 +396,50 @@ export interface Vent {
   fds_area: number;
 }
 
+export class Vent implements IVent {
+  public index: number;
+  public id: string;
+  public surface: string;
+  public devc_id: string;
+  public ctrl_id: string;
+  public dimensions: {
+    x1: number;
+    x2: number;
+    y1: number;
+    y2: number;
+    z1: number;
+    z2: number;
+  };
+  public fds_area: number;
+  constructor(public fdsData: FdsData, vent: IVent) {
+    this.index = vent.index;
+    this.id = vent.id;
+    this.surface = vent.surface;
+    this.devc_id = vent.devc_id;
+    this.ctrl_id = vent.ctrl_id;
+    this.dimensions = vent.dimensions;
+    this.fds_area = vent.fds_area;
+  }
+  public get isBurner(): boolean {
+    const surfaces = [];
+    if (this.surface) {
+      surfaces.push(this.surface);
+    }
+    for (const surfaceName of surfaces) {
+      const surface = this.fdsData.surfaces.find((surface) =>
+        surface.id === surfaceName
+      );
+      if (!surface) continue;
+      if (surface.isBurner) {
+        return true;
+      }
+    }
+    return false;
+  }
+}
+
 /** Obstruction information */
-export interface Obst {
+export interface IObst {
   index: number;
   id: string;
   surfaces?: {
@@ -246,159 +468,253 @@ export interface Obst {
   };
 }
 
-export type Burner = BurnerObst | BurnerVent;
+export class Obst implements IObst {
+  public index: number;
+  public id: string;
+  public surfaces?: {
+    x_min: string;
+    x_max: string;
+    y_min: string;
+    y_max: string;
+    z_min: string;
+    z_max: string;
+  };
+  public devc_id: string;
+  public ctrl_id: string;
+  public dimensions: {
+    x1: number;
+    x2: number;
+    y1: number;
+    y2: number;
+    z1: number;
+    z2: number;
+  };
+  public bounds: IjkBounds;
+  public fds_area: {
+    x: number;
+    y: number;
+    z: number;
+  };
+  constructor(public fdsData: FdsData, obst: IObst) {
+    this.index = obst.index;
+    this.id = obst.id;
+    this.surfaces = obst.surfaces;
+    this.devc_id = obst.devc_id;
+    this.ctrl_id = obst.ctrl_id;
+    this.dimensions = obst.dimensions;
+    this.bounds = obst.bounds;
+    this.fds_area = obst.fds_area;
+  }
 
+  public get isBurner(): boolean {
+    const surfaces = [];
+    if (this.surfaces) {
+      surfaces.push(this.surfaces.x_min);
+      surfaces.push(this.surfaces.x_max);
+      surfaces.push(this.surfaces.y_min);
+      surfaces.push(this.surfaces.y_max);
+      surfaces.push(this.surfaces.z_min);
+      surfaces.push(this.surfaces.z_max);
+    }
+    for (const surfaceName of surfaces) {
+      const surface = this.fdsData.surfaces.find((surface) =>
+        surface.id === surfaceName
+      );
+      if (!surface) continue;
+      if (surface.isBurner) {
+        return true;
+      }
+    }
+    return false;
+  }
+}
+
+export class FdsData implements FdsFile {
+  public chid: string;
+  public ec_ll: number;
+  public visibility_factor: number;
+  public dump: { nframes: number };
+  public time: { begin: number; end: number };
+  public surfaces: Surf[];
+  public meshes: Mesh[];
+  public devices: Devc[];
+  public hvac: Hvac[];
+  public props: Prop[];
+  public parts: Part[];
+  public reacs: Reac[];
+  constructor(fdsFile: FdsFile) {
+    this.chid = fdsFile.chid;
+    this.ec_ll = fdsFile.ec_ll;
+    this.visibility_factor = fdsFile.visibility_factor;
+    this.dump = fdsFile.dump;
+    this.time = fdsFile.time;
+    this.surfaces = fdsFile.surfaces.map((surf) => new Surf(this, surf));
+    this.meshes = fdsFile.meshes.map((mesh) => new Mesh(this, mesh));
+    this.devices = fdsFile.devices.map((devc) => new Devc(this, devc));
+    this.hvac = fdsFile.hvac;
+    this.props = fdsFile.props.map((prop) => new Prop(this, prop));
+    this.parts = fdsFile.parts;
+    this.reacs = fdsFile.reacs;
+  }
+
+  public get burners(): Burner[] {
+    // Iterate through all the OBSTs and VENTs and determine which ones are
+    // burners.
+    const burners: Burner[] = [];
+    for (const obst of this.meshes.flatMap((mesh) => mesh.obsts ?? [])) {
+      if (obst.isBurner) {
+        const burner = new Burner(
+          this,
+          { type: "obst", object: obst },
+        );
+        burners.push(burner);
+      }
+    }
+    for (const vent of this.meshes.flatMap((mesh) => mesh.vents ?? [])) {
+      if (vent.isBurner) {
+        const burner = new Burner(
+          this,
+          { type: "vent", object: vent },
+        );
+        burners.push(burner);
+      }
+    }
+    return burners;
+  }
+
+  public getSurface(
+    surfaceName: string,
+  ): Surf | undefined {
+    for (const surf of this.surfaces) {
+      if (surf.id === surfaceName) {
+        return surf;
+      }
+    }
+  }
+
+  public ventHasFlow(vent: IVent): boolean {
+    // TODO: reenable
+    // const linkedHVACs = this.hvac.filter((hvac) =>
+    //   isLinkedToVent(vent, hvac)
+    // );
+    // const isHVAC = linkedHVACs.length != 0;
+    const isHVAC = false;
+    const surfaceName = vent.surface;
+    const surface = this.getSurface(surfaceName);
+    if (!surface) return false;
+    const hasSurfFlow = surface.hasFlow;
+    return isHVAC || hasSurfFlow;
+  }
+
+  /// Take the xb dimensions of a vent and see if there is a flow vent with the
+  /// matching dimensions, or a device that references it as a duct node.
+  public hasFlowDevc(vent: IVent): boolean {
+    const flow_devcs = this.devices.filter((devc) => devc.isFlowDevice);
+    // Find flow devices that match the vents XB
+    const trackingFlowMatchingXB = flow_devcs.filter((devc) =>
+      dimensionsMatch(vent.dimensions, devc.dimensions)
+    );
+    // TODO: fix hvac
+    // // take only the devices which have a "DUCT_ID" parameter
+    // let ductIDDevices: any[]= fds_datadevices.devicesdevices.filter((devc) => devc.duct_id.is_some())
+    //     ;
+    // // take only the devices where the "DUCT_ID" matches the flowing
+    // // namelist
+    // let relevantDuctIDDevices: any[]= ductIDDevices
+
+    //     .filter((devc) => {
+    //         if let (Some(duct_id), (Some(flow_id))) = (devc.duct_id, vent.id)
+    //         {
+    //           return  duct_id === flow_id
+    //         } else {
+    //             return   false
+    //         }
+    //     })
+    //     ;
+    // // take only the devices that measure "DUCT VOLUME FLOW", and check that
+    // // the list is not null
+    // let trackingFlowViaDuctID = relevantDuctIDDevices .any(|devc| devc.quantity === Some("DUCT VOLUME FLOW"));
+    const trackingFlowViaDuctID = false;
+    return trackingFlowMatchingXB.length > 0 || trackingFlowViaDuctID;
+  }
+}
+
+export class Burner {
+  private object: BurnerObst | BurnerVent;
+  constructor(
+    public fdsData: FdsData,
+    object: BurnerObst | BurnerVent,
+  ) {
+    this.object = object;
+  }
+
+  get fuelArea(): number {
+    switch (this.object.type) {
+      case "obst":
+        // TODO: currently just assumes zmax is being used
+        return this.object.object.fds_area.z;
+      case "vent":
+        return this.object.object.fds_area;
+      default:
+        throw new Error("invalid burner type");
+    }
+  }
+  // TODO: assumes only zmax is being used
+  get surfId(): string | undefined {
+    switch (this.object.type) {
+      case "obst":
+        // TODO: currently just assumes zmax is being used
+        return this.object.object.surfaces?.z_max;
+      case "vent":
+        return this.object.object.surface;
+      default:
+        throw new Error("invalid burner type");
+    }
+  }
+
+  get surface(): Surf | undefined {
+    switch (this.object.type) {
+      case "obst": {
+        const surfaces = this.object.object.surfaces;
+        if (surfaces?.z_max) {
+          return this.fdsData.getSurface(surfaces?.z_max);
+        }
+        return undefined;
+      }
+      case "vent":
+        return this.fdsData.getSurface(this.object.object.surface);
+      default:
+        throw new Error("invalid burner type");
+    }
+  }
+  get maxHrr(): number {
+    return this.fuelArea * this.hrrpua / 1000;
+  }
+  get hrrpua(): number {
+    const surfId = this.surfId;
+    if (!surfId) return 0.0;
+    const surface = this.fdsData.surfaces.find((surface) =>
+      surface.id === surfId
+    );
+    if (!surface) return 0.0;
+    if (surface.hrrpua) {
+      return surface.hrrpua;
+    } else if (surface.mlrpua) {
+      // MLRPUA is in kg/m^2/s, we simply need to multiply the mass loss
+      // rate by the heat of combustion in kJ/kg.
+      return this.fdsData.reacs[0].heat_of_combustion * surface.mlrpua;
+    } else {
+      return 0.0;
+    }
+  }
+}
 export interface BurnerObst {
   type: "obst";
   object: Obst;
-  fds_data: FdsFile;
 }
 export interface BurnerVent {
   type: "vent";
-  object: Vent;
-  fds_data: FdsFile;
-}
-
-export function getBurnerSurf(
-  fds_data: FdsFile,
-  burner: Burner,
-): Surf | undefined {
-  switch (burner.type) {
-    case "obst":
-      {
-        const surfaces = burner.object.surfaces;
-        if (surfaces?.z_max) {
-          return getSurface(fds_data, surfaces?.z_max);
-        }
-      }
-      break;
-    case "vent":
-      return getSurface(fds_data, burner.object.surface);
-    default:
-      break;
-  }
-}
-
-export function fuel_area(burner: Burner): number {
-  switch (burner.type) {
-    case "obst":
-      // TODO: currently just assumes zmax is being used
-      return burner.object.fds_area.z;
-    case "vent":
-      return burner.object.fds_area;
-  }
-}
-
-// TODO: assumes only zmax is being used
-export function burnerSurfId(burner: Burner): string | undefined {
-  switch (burner.type) {
-    case "obst":
-      // TODO: currently just assumes zmax is being used
-      return burner.object.surfaces?.z_max;
-    case "vent":
-      return burner.object.surface;
-  }
-}
-
-export function max_hrr(burner: Burner): number {
-  return fuel_area(burner) * hrrpua(burner) / 1000;
-}
-
-export function hrrpua(burner: Burner): number {
-  const surfId = burnerSurfId(burner);
-  if (!surfId) return 0.0;
-  const surface = burner.fds_data.surfaces.find((surface) =>
-    surface.id === surfId
-  );
-  if (!surface) return 0.0;
-  if (surface.hrrpua) {
-    return surface.hrrpua;
-  } else if (surface.mlrpua) {
-    // MLRPUA is in kg/m^2/s, we simply need to multiply the mass loss
-    // rate by the heat of combustion in kJ/kg.
-    return burner.fds_data.reacs[0].heat_of_combustion * surface.mlrpua;
-  } else {
-    return 0.0;
-  }
-}
-
-export function isBurnerSurf(surf: Surf): boolean {
-  return surf.mlrpua > 0 || surf.hrrpua > 0;
-}
-
-export function isBurnerObst(fds_data: FdsFile, obst: Obst): boolean {
-  const surfaces = [];
-  if (obst.surfaces) {
-    surfaces.push(obst.surfaces.x_min);
-    surfaces.push(obst.surfaces.x_max);
-    surfaces.push(obst.surfaces.y_min);
-    surfaces.push(obst.surfaces.y_max);
-    surfaces.push(obst.surfaces.z_min);
-    surfaces.push(obst.surfaces.z_max);
-  }
-  for (const surfaceName of surfaces) {
-    const surface = fds_data.surfaces.find((surface) =>
-      surface.id === surfaceName
-    );
-    if (!surface) continue;
-    if (isBurnerSurf(surface)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-export function isBurnerVent(fds_data: FdsFile, vent: Vent): boolean {
-  const surfaces = [];
-  if (vent.surface) {
-    surfaces.push(vent.surface);
-  }
-  for (const surfaceName of surfaces) {
-    const surface = fds_data.surfaces.find((surface) =>
-      surface.id === surfaceName
-    );
-    if (!surface) continue;
-    if (isBurnerSurf(surface)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-export function get_burners(fds_data: FdsFile): Burner[] {
-  // Iterate through all the OBSTs and VENTs and determine which ones are
-  // burners.
-  const burners: Burner[] = [];
-  for (const obst of fds_data.meshes.flatMap((mesh) => mesh.obsts ?? [])) {
-    if (isBurnerObst(fds_data, obst)) {
-      burners.push({ type: "obst", fds_data, object: obst });
-    }
-  }
-  for (const vent of fds_data.meshes.flatMap((mesh) => mesh.vents ?? [])) {
-    if (isBurnerVent(fds_data, vent)) {
-      burners.push({ type: "vent", fds_data, object: vent });
-    }
-  }
-  return burners;
-}
-
-export function getSurface(
-  fds_data: FdsFile,
-  surfaceName: string,
-): Surf | undefined {
-  for (const surf of fds_data.surfaces) {
-    if (surf.id === surfaceName) {
-      return surf;
-    }
-  }
-}
-
-export function isFlowDevice(device: Devc): boolean {
-  const firstQuantity = device.quantities[0];
-  if (!firstQuantity) return false;
-  return firstQuantity === "VOLUME FLOW" ||
-    (firstQuantity === "NORMAL VELOCITY" &&
-      device.spatial_statistic === "SURFACE INTEGRAL");
+  object: IVent;
 }
 
 export function dimensionsMatch(a: Xb, b: Xb): boolean {
@@ -408,62 +724,6 @@ export function dimensionsMatch(a: Xb, b: Xb): boolean {
     a.y2 === b.y2 &&
     a.z1 === b.z1 &&
     a.z2 === b.z2;
-}
-
-// TODO: check for flow
-export function devcIsSprinkler(fds_data: FdsFile, devc: Devc): boolean {
-  if (devc.prop_id) {
-    const prop = fds_data.props.find((prop) => prop.id === devc.prop_id);
-    if (!prop) return false;
-    return isSprinklerProp(prop);
-  } else {
-    return false;
-  }
-}
-
-export function devcIsThermalDetector(fds_data: FdsFile, devc: Devc): boolean {
-  if (devc.prop_id) {
-    const prop = fds_data.props.find((prop) => prop.id === devc.prop_id);
-    if (!prop) return false;
-    return isThermalDetectorProp(prop);
-  } else {
-    return false;
-  }
-}
-
-export function isThermalDetectorProp(prop: Prop): boolean {
-  return prop.quantity === "LINK TEMPERATURE";
-}
-
-export function isSprinklerProp(prop: Prop): boolean {
-  return prop.quantity === "SPRINKLER LINK TEMPERATURE";
-}
-
-export function isSmokeDetectorProp(prop: Prop): boolean {
-  return prop.quantity === "CHAMBER OBSCURATION";
-}
-
-export function devcIsSmokeDetector(fds_data: FdsFile, devc: Devc): boolean {
-  if (devc.prop_id) {
-    const prop = fds_data.props.find((prop) => prop.id === devc.prop_id);
-    if (!prop) return false;
-    return isSmokeDetectorProp(prop);
-  } else {
-    return false;
-  }
-}
-
-/// Check if the cell directly above a device is solid. This is useful to make
-/// sure that sprinklers and smoke detectors are directly beneath the a ceiling.
-///
-/// TODO: This is more complicated as it may not be a solid cell, but a solid
-/// surface. This is exacerbated by being on a mesh boundary.
-export function devcBeneathCeiling(devc: Devc): boolean {
-  return devc.points.every(pointBeneathCeiling);
-}
-
-function pointBeneathCeiling(point: DevcPoint): boolean {
-  return point.init_solid_zplus !== false;
 }
 
 export enum StdGrowthRate {
@@ -508,111 +768,7 @@ export function intersect(a: Xb, b: Xb): boolean {
   return intersect_x && intersect_y && intersect_z;
 }
 
-/// Take the xb dimensions of a vent and see if there is a flow vent with the
-/// matching dimensions, or a device that references it as a duct node.
-export function hasFlowDevc(fds_data: FdsFile, vent: Vent): boolean {
-  const flow_devcs = fds_data.devices.filter(isFlowDevice);
-  // Find flow devices that match the vents XB
-  const trackingFlowMatchingXB = flow_devcs.filter((devc) =>
-    dimensionsMatch(vent.dimensions, devc.dimensions)
-  );
-  // TODO: fix hvac
-  // // take only the devices which have a "DUCT_ID" parameter
-  // let ductIDDevices: any[]= fds_datadevices.devicesdevices.filter((devc) => devc.duct_id.is_some())
-  //     ;
-  // // take only the devices where the "DUCT_ID" matches the flowing
-  // // namelist
-  // let relevantDuctIDDevices: any[]= ductIDDevices
-
-  //     .filter((devc) => {
-  //         if let (Some(duct_id), (Some(flow_id))) = (devc.duct_id, vent.id)
-  //         {
-  //           return  duct_id === flow_id
-  //         } else {
-  //             return   false
-  //         }
-  //     })
-  //     ;
-  // // take only the devices that measure "DUCT VOLUME FLOW", and check that
-  // // the list is not null
-  // let trackingFlowViaDuctID = relevantDuctIDDevices .any(|devc| devc.quantity === Some("DUCT VOLUME FLOW"));
-  const trackingFlowViaDuctID = false;
-  return trackingFlowMatchingXB.length > 0 || trackingFlowViaDuctID;
-}
-
-export function surfHasFlow(surf: Surf): boolean {
-  return surf.mlrpua != null ||
-    surf.hrrpua != null ||
-    surf.vel != null ||
-    surf.volume_flow != null;
-}
-
-export function getSurf(
-  fds_data: FdsFile,
-  surfaceName: string,
-): Surf | undefined {
-  for (const surf of fds_data.surfaces) {
-    if (surf.id === surfaceName) {
-      return surf;
-    }
-  }
-}
-
-export function ventHasFlow(fds_data: FdsFile, vent: Vent): boolean {
-  // TODO: reenable
-  // const linkedHVACs = fds_data.hvac.filter((hvac) =>
-  //   isLinkedToVent(vent, hvac)
-  // );
-  // const isHVAC = linkedHVACs.length != 0;
-  const isHVAC = false;
-  const surfaceName = vent.surface;
-  const surface = getSurf(fds_data, surfaceName);
-  if (!surface) return false;
-  const hasSurfFlow = surfHasFlow(surface);
-  return isHVAC || hasSurfFlow;
-}
-
-// function isScreenPart(part:Part): boolean{
-//     return  part.drag_law === "SCREEN"
-// }
-
-// function hasInertOrDefaultSurf(part:Part): boolean {
-//     if (part.surf_id) {
-//         return    part.surf_id === "INERT"
-//     } else {
-//         return   true
-//     }
-// }
-
-// function leakage(fds_data:FdsFile): VerificationResult {
-//     let testName = "Leakage Implementation Test";
-//     let screen_parts: any[]= fds_data .part .filter((part) => isScreenPart(part))
-//         ;
-//     let issues = screen_parts
-
-//         .map((part) => {
-//             if (hasInertOrDefaultSurf(part)) {
-//                 return   [`Screen ${part.id} Surface`,{type:"failure",message:"Has an INERT or default material type"},]
-//             } else {
-//                 return   [`Screen ${part.id} Surface`,{type:"failure",message:"Has a specified material type"},]
-//             }
-//         })
-//         ;
-//     ["Screen Material Type", issues]
-// }
-
-/// Check if a device is stuck in a solid. Returns Nothing if it's not a
-/// sensible question (e.g. it is not a point device).
-export function stuckInSolid(devc: Devc): boolean {
-  for (const point of devc.points) {
-    if (point.init_solid) {
-      return true;
-    }
-  }
-  return false;
-}
-
-export function _isLinkedToVent(vent: Vent, hvac: Hvac): boolean {
+export function _isLinkedToVent(vent: IVent, hvac: Hvac): boolean {
   if (vent.id) {
     return hvac.vent_id === vent.id || hvac.vent2_id === vent.id;
   } else {

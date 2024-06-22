@@ -1,15 +1,12 @@
-import {
-    devcIsSmokeDetector,
-    devcIsSprinkler,
-    type FdsFile,
-    get_burners,
-    type IjkBounds,
-    max_hrr,
-    type Mesh,
-    type Obst,
-    type Resolution,
-    type Vent,
-    type Xb,
+import type {
+    Burner,
+    FdsData,
+    IjkBounds,
+    IVent,
+    Mesh,
+    Obst,
+    Resolution,
+    Xb,
 } from "./fds.ts";
 
 /** A summary of key information about an FDS input file. */
@@ -56,16 +53,16 @@ export interface InputSummary {
     ceiling_heights: { height: number; area: number }[];
 }
 
-function flowRate(fds_data: FdsFile, vent: Vent): number | undefined {
-    const surface = fds_data.surfaces.find((surface) =>
+function flowRate(fdsData: FdsData, vent: IVent): number | undefined {
+    const surface = fdsData.surfaces.find((surface) =>
         surface.id === vent.surface
     );
     if (!surface) return;
     return surface.volume_flow;
 }
 
-function heat_of_combustion(fds_data: FdsFile): number {
-    const reac = fds_data.reacs[0];
+function heat_of_combustion(fdsData: FdsData): number {
+    const reac = fdsData.reacs[0];
     const y_s = reac.soot_yield ?? 0.0;
     const y_co = reac.co_yield ?? 0.0;
     const soot_h_fraction = reac.soot_h_fraction ?? 0.1;
@@ -100,36 +97,36 @@ function heat_of_combustion(fds_data: FdsFile): number {
     // const v_n2 = v / 2.0;
     return v_o2 * w_o2 * epumo2 / (v_F * w_F);
 }
-function soot_production_rate(fds_data: FdsFile): number {
-    const reac = fds_data.reacs[0];
+function soot_production_rate(fdsData: FdsData): number {
+    const reac = fdsData.reacs[0];
     const y_s = reac.soot_yield ?? 0.0;
-    const hoc = heat_of_combustion(fds_data);
-    const hrr = total_max_hrr(fds_data);
+    const hoc = heat_of_combustion(fdsData);
+    const hrr = total_max_hrr(fdsData);
     return y_s / hoc * hrr;
 }
 
-function total_max_hrr(fds_data: FdsFile): number {
-    const burners = get_burners(fds_data);
-    return burners.map(max_hrr).reduce(
+function total_max_hrr(fdsData: FdsData): number {
+    const burners: Burner[] = fdsData.burners;
+    return burners.map((burner) => burner.maxHrr).reduce(
         (accumulator, currentValue) => accumulator + currentValue,
         0,
     );
 }
 
-/** Create an InputSummay from an FdsFile.
- * @param fds_data The JSON object obtained from fds.
+/** Create an InputSummay from an FdsData.
+ * @param fdsData The JSON object obtained from fds.
  * @returns An input summary
  */
-export function summarise_input(fds_data: FdsFile): InputSummary {
-    const simulation_length = fds_data.time.end - fds_data.time.begin;
+export function summarise_input(fdsData: FdsData): InputSummary {
+    const simulation_length = fdsData.time.end - fdsData.time.begin;
     // let ndrs: Vec<Vec<_>> = burners.iter().map(|burner| burner.ndr()).collect();
 
-    const supplies: Vent[] = [];
+    const supplies: IVent[] = [];
     let total_supply_rate = 0;
-    const extracts: Vent[] = [];
+    const extracts: IVent[] = [];
     let total_extract_rate = 0;
-    for (const vent of fds_data.meshes.flatMap((mesh) => mesh.vents ?? [])) {
-        const flow = flowRate(fds_data, vent);
+    for (const vent of fdsData.meshes.flatMap((mesh) => mesh.vents ?? [])) {
+        const flow = flowRate(fdsData, vent);
         if (flow != undefined) {
             if (flow < 0) {
                 supplies.push(vent);
@@ -141,14 +138,12 @@ export function summarise_input(fds_data: FdsFile): InputSummary {
         }
     }
 
-    const sprinklers = fds_data.devices.filter((devc) =>
-        devcIsSprinkler(fds_data, devc)
-    );
+    const sprinklers = fdsData.devices.filter((devc) => devc.devcIsSprinkler);
     const n_sprinklers = sprinklers.length;
 
     const sprinkler_activation_temperatures: number[] = [];
     for (const devc of sprinklers) {
-        const prop = fds_data.props.find((prop) => prop.id === devc.prop_id);
+        const prop = fdsData.props.find((prop) => prop.id === devc.prop_id);
         if (prop) {
             sprinkler_activation_temperatures.push(prop.activation_temperature);
         }
@@ -156,13 +151,13 @@ export function summarise_input(fds_data: FdsFile): InputSummary {
     // smoke_detector_obscurations.dedup();
     sprinkler_activation_temperatures.sort();
 
-    const smoke_detectors = fds_data.devices.filter((devc) =>
-        devcIsSmokeDetector(fds_data, devc)
+    const smoke_detectors = fdsData.devices.filter((devc) =>
+        devc.devcIsSmokeDetector()
     );
     const n_smoke_detectors = smoke_detectors.length;
     const smoke_detector_obscurations: number[] = [];
     for (const devc of smoke_detectors) {
-        const prop = fds_data.props.find((prop) => prop.id === devc.prop_id);
+        const prop = fdsData.props.find((prop) => prop.id === devc.prop_id);
         if (prop) {
             smoke_detector_obscurations.push(prop.activation_obscuration);
         }
@@ -171,13 +166,13 @@ export function summarise_input(fds_data: FdsFile): InputSummary {
     smoke_detector_obscurations.sort();
 
     return {
-        chid: fds_data.chid,
+        chid: fdsData.chid,
         simulation_length,
-        n_burners: get_burners(fds_data).length,
-        total_max_hrr: total_max_hrr(fds_data),
-        heat_of_combustion_calc: heat_of_combustion(fds_data),
-        heat_of_combustion: fds_data.reacs[0]?.heat_of_combustion,
-        total_soot_production: soot_production_rate(fds_data),
+        n_burners: fdsData.burners.length,
+        total_max_hrr: total_max_hrr(fdsData),
+        heat_of_combustion_calc: heat_of_combustion(fdsData),
+        heat_of_combustion: fdsData.reacs[0]?.heat_of_combustion,
+        total_soot_production: soot_production_rate(fdsData),
         n_sprinklers,
         sprinkler_activation_temperatures,
         n_smoke_detectors,
@@ -186,20 +181,20 @@ export function summarise_input(fds_data: FdsFile): InputSummary {
         total_extract_rate,
         n_supply_vents: supplies.length,
         total_supply_rate,
-        n_meshes: fds_data.meshes.length,
-        n_cells: countCells(fds_data),
-        mesh_resolutions: fds_data.meshes.map((mesh) => mesh.cell_sizes),
+        n_meshes: fdsData.meshes.length,
+        n_cells: countCells(fdsData),
+        mesh_resolutions: fdsData.meshes.map((mesh) => mesh.cell_sizes),
         // ndrs,
-        ceiling_heights: getCeilingHeights(fds_data),
+        ceiling_heights: getCeilingHeights(fdsData),
     };
 }
 
 /** Count the total number of cells in the model.
- * @param fds_data The JSON object from FDS
+ * @param fdsData The JSON object from FDS
  * @returns The total number of cells
  */
-export function countCells(fds_data: FdsFile): number {
-    return fds_data.meshes.reduce(
+export function countCells(fdsData: FdsData): number {
+    return fdsData.meshes.reduce(
         (accumulator, mesh) =>
             accumulator + (mesh.ijk.i * mesh.ijk.j * mesh.ijk.k),
         0,
@@ -499,7 +494,7 @@ function meshAreaZ(mesh: Mesh): number {
         (mesh.dimensions.y2 - mesh.dimensions.y1);
 }
 
-export function greatestExtent(axis: "x" | "y" | "z", fdsFile: FdsFile): {
+export function greatestExtent(axis: "x" | "y" | "z", fdsFile: FdsData): {
     start: number;
     end: number;
     area: number;
@@ -515,7 +510,7 @@ export function greatestExtent(axis: "x" | "y" | "z", fdsFile: FdsFile): {
 }
 
 export function getCeilingHeights(
-    fdsFile: FdsFile,
+    fdsFile: FdsData,
 ): { height: number; area: number }[] {
     const g = greatestExtent("z", fdsFile);
     const avg = (g.end + g.start) / 2;
@@ -587,7 +582,7 @@ export class CellMap {
 }
 
 export function getRegionExtents(
-    fdsFile: FdsFile,
+    fdsFile: FdsData,
     val: number,
 ): CellMap[] {
     const regionExtents: CellMap[] = [];
