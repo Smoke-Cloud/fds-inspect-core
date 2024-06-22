@@ -1,13 +1,14 @@
+// deno-lint-ignore-file require-await
 import {
-    alpha,
     type Devc,
     type FdsData,
+    findMatchingGrowthRate,
+    generateHrrRelDiff,
     intersect,
     type IVent,
     type Reac,
-    StdGrowthRate,
 } from "./fds.ts";
-import type { Test, VerificationResult } from "./mod.ts";
+import type { SmvData, Test, VerificationResult } from "./mod.ts";
 
 function success(
     message: string,
@@ -30,7 +31,8 @@ function failure(
 /// Do any of the meshes overlap.
 export const meshesOverlapTest: Test = {
     id: "input.meshes.overlap",
-    func: function (fdsData: FdsData): VerificationResult[] {
+    stages: "in",
+    func: async function (fdsData: FdsData): Promise<VerificationResult[]> {
         // Clone a list of meshes.
         const intersections = [];
         for (const meshA of fdsData.meshes) {
@@ -61,8 +63,9 @@ export const meshesOverlapTest: Test = {
 
 export const flowTempTest: Test = {
     id: "input.flows.parameters.temperature",
+    stages: "in",
     // Supplies should not have a temperature specified
-    func: function (fdsData: FdsData): VerificationResult[] {
+    func: async function (fdsData: FdsData): Promise<VerificationResult[]> {
         const testResults = [];
         // List of surfaces that should have an ambient temperature.
         const flowSurfaces: Set<string> = new Set();
@@ -99,9 +102,10 @@ export const flowTempTest: Test = {
 
 export const sootYieldTest: Test = {
     id: "input.reac.sootYield",
-    func: function (
+    stages: "in",
+    func: async function (
         fdsData: FdsData,
-    ): VerificationResult[] {
+    ): Promise<VerificationResult[]> {
         const results = [];
         for (const reac of fdsData.reacs ?? []) {
             const propName = "Soot Yield";
@@ -133,9 +137,10 @@ export const sootYieldTest: Test = {
 
 export const coYieldTest: Test = {
     id: "input.reac.coYield",
-    func: function (
+    stages: "in",
+    func: async function (
         fdsData: FdsData,
-    ): VerificationResult[] {
+    ): Promise<VerificationResult[]> {
         const results = [];
         for (const reac of fdsData.reacs ?? []) {
             const propName = "CO Yield";
@@ -167,7 +172,10 @@ export const coYieldTest: Test = {
 
 export const formulaTest: Test = {
     id: "input.reac.formula",
-    func: function formula_tests(fdsData: FdsData): VerificationResult[] {
+    stages: "in",
+    func: async function formula_tests(
+        fdsData: FdsData,
+    ): Promise<VerificationResult[]> {
         function mkTestProp(
             name: string,
             f: (reac: Reac) => number,
@@ -233,7 +241,8 @@ export const formulaTest: Test = {
 
 export const visibilityFactorTest: Test = {
     id: "input.reac.visibilityFactor",
-    func: function (fdsData: FdsData): VerificationResult[] {
+    stages: "in",
+    func: async function (fdsData: FdsData): Promise<VerificationResult[]> {
         const vis = fdsData.visibility_factor;
         let visibility_factor;
         if (!vis) {
@@ -262,7 +271,8 @@ export const visibilityFactorTest: Test = {
 
 export const maximumVisibilityTest: Test = {
     id: "input.reac.maximumVisibility",
-    func: function (fdsData: FdsData): VerificationResult[] {
+    stages: "in",
+    func: async function (fdsData: FdsData): Promise<VerificationResult[]> {
         const vis = fdsData.ec_ll && fdsData.visibility_factor
             ? fdsData.visibility_factor / fdsData.ec_ll
             : undefined;
@@ -293,7 +303,8 @@ export const maximumVisibilityTest: Test = {
 
 export const nFramesTest: Test = {
     id: "input.dump.nFrames",
-    func: function (fdsData: FdsData): VerificationResult[] {
+    stages: "in",
+    func: async function (fdsData: FdsData): Promise<VerificationResult[]> {
         function getSimTimes(fdsData: FdsData): [number, number] {
             if (fdsData.time) {
                 return [fdsData.time.begin ?? 0, fdsData.time.end ?? 0];
@@ -328,8 +339,11 @@ export const nFramesTest: Test = {
 
 export const flowCoverageTest: Test = {
     id: "input.measure.flow",
+    stages: "in",
     /// Ensure that everage flow device is covered by a flow rate device. TODO: does not cover HVAC.
-    func: function flowCoverage(fdsData: FdsData): VerificationResult[] {
+    func: async function flowCoverage(
+        fdsData: FdsData,
+    ): Promise<VerificationResult[]> {
         // it is also possible that other objects (such as OBST have flow)
         const vents = fdsData.meshes.flatMap((mesh) => mesh.vents ?? []);
         // TODO: obsts
@@ -364,8 +378,11 @@ export const flowCoverageTest: Test = {
 
 export const deviceInSolidTest: Test = {
     id: "input.measure.device.inSolid",
+    stages: "in",
     /// Ensure that no devices are stuck in solids.
-    func: function devicesTest(fdsData: FdsData): VerificationResult[] {
+    func: async function devicesTest(
+        fdsData: FdsData,
+    ): Promise<VerificationResult[]> {
         const stuckDevices: Devc[] = fdsData
             .devices
             // ND: we only perform this check for devices with a prop id (which is
@@ -387,8 +404,9 @@ export const deviceInSolidTest: Test = {
 
 export const spkDetCeilingTest: Test = {
     id: "input.measure.device.underCeiling",
+    stages: "in",
     /// Ensure that sprinklers and smoke detectors are beneath a ceiling.
-    func: function (fdsData: FdsData): VerificationResult[] {
+    func: async function (fdsData: FdsData): Promise<VerificationResult[]> {
         const nonBeneathCeiling: Devc[] = fdsData
             .devices
             .filter((devc) =>
@@ -416,82 +434,49 @@ export const spkDetCeilingTest: Test = {
 };
 
 /// Test the growth rate of a burner and check that it either matches a standard
-/// growth rate, or a steady-state value within 20 s.
+/// growth rate, or a steady-state value within 30 s.
 export const growthRateTest: Test = {
     id: "input.burner.growthRate",
-    func: function (
+    stages: "in",
+    func: async function (
         fdsData: FdsData,
-    ): VerificationResult[] {
+    ): Promise<VerificationResult[]> {
+        const hrrSpec = fdsData.hrrSpec;
+        if (!hrrSpec) return [];
+        if (hrrSpec.type === "composite") {
+            return [failure(
+                `Growth rate is composite`,
+            )];
+        }
         const results: VerificationResult[] = [];
-        for (const burner of fdsData.burners) {
-            // TODO: This requires understanding the burner and it's exposed surfaces
-            // TODO: allow steady state curves
-            const surface = burner.surface;
-            if (!surface) return [];
-            const tau_q = surface?.tau_q;
-
-            // if (!tau_qs.all((x) => x === tau_q)) {
-            //   // If all TAU_Qs are no the same, test fails
-            //   results.push({
-            //     type: "failure",
-            //     message: "Multiple different TAU_Q values",
-            //   });
-            // }
-            const specifiedAlpha = burner.maxHrr / Math.abs(tau_q) ** 2;
-
-            const std_growth_rates = [
-                StdGrowthRate.NFPASlow,
-                StdGrowthRate.NFPAFast,
-                StdGrowthRate.NFPAMedium,
-                StdGrowthRate.NFPAUltrafast,
-                StdGrowthRate.EurocodeSlow,
-                StdGrowthRate.EurocodeMedium,
-                StdGrowthRate.EurocodeFast,
-                StdGrowthRate.EurocodeUltrafast,
-            ];
-
-            const std_growth_diffs: [StdGrowthRate, number][] = std_growth_rates
-                .map((
-                    std_alpha,
-                ) => [
-                    std_alpha,
-                    Math.abs(
-                        (specifiedAlpha - alpha(std_alpha)) /
-                            alpha(std_alpha),
-                    ),
-                ]);
-            let min_diff = std_growth_diffs[0][1];
-            let matchingGrowthRate: StdGrowthRate | undefined;
-            // console.log(std_growth_diffs);
-            for (const [growthRate, growth_diff] of std_growth_diffs) {
-                if (growth_diff < min_diff) {
-                    min_diff = growth_diff;
-                    matchingGrowthRate = growthRate;
-                }
-            }
-            if (tau_q == undefined) {
-                results.push(
-                    warning(
-                        "No growth rate specified. If steady-state is intended a ramp-up of 30 s should be used.",
-                    ),
-                );
-            } else if (tau_q < -30) {
-                results.push(
-                    success(`Growth rate is 30 s (as used for steady-state)`),
-                );
-            } else if (min_diff < 0.001) {
-                results.push(
-                    success(
-                        `Alpha matches standard value, tau_q: ${tau_q} s, α: ${specifiedAlpha} (${matchingGrowthRate}), maxHRR: ${burner.maxHrr} kW`,
-                    ),
-                );
-            } else {
-                results.push(
-                    failure(
-                        `Alpha value deviates from standard values, tau_q: ${tau_q} s, α: ${specifiedAlpha} (${matchingGrowthRate}), maxHRR: ${burner.maxHrr} kW`,
-                    ),
-                );
-            }
+        const matchingGrowthRate = findMatchingGrowthRate(hrrSpec);
+        const info =
+            `TAU_Q = ${hrrSpec.tau_q} s, (${matchingGrowthRate}), MaxHRR = ${
+                hrrSpec.peak / 1000
+            } kW`;
+        if (hrrSpec.tau_q == undefined) {
+            results.push(
+                warning(
+                    "No growth rate specified. If steady-state is intended a ramp-up of 30 s should be used.",
+                ),
+            );
+        } else if (hrrSpec.tau_q === -30) {
+            // TODO: add floating point bounds
+            results.push(
+                success(`Growth rate is 30 s (as used for steady-state)`),
+            );
+        } else if (matchingGrowthRate) {
+            results.push(
+                success(
+                    `Alpha matches standard value: ${info}`,
+                ),
+            );
+        } else {
+            results.push(
+                failure(
+                    `Alpha value deviates from standard values: ${info}`,
+                ),
+            );
         }
         return results;
     },
@@ -499,14 +484,87 @@ export const growthRateTest: Test = {
 
 export const burnerExistenceTest: Test = {
     id: "input.burner.exists",
-    func: function (
+    stages: "in",
+    func: async function (
         fdsData: FdsData,
-    ): VerificationResult[] {
+    ): Promise<VerificationResult[]> {
         const n_burners = fdsData.burners.length;
         if (n_burners > 0) {
             return [success(`${n_burners} burners were found`)];
         } else {
             return [failure("No burners")];
+        }
+    },
+};
+
+export const matchingChids: Test = {
+    id: "matching.chid",
+    stages: "inout",
+    func: async function (
+        fdsData: FdsData,
+        smvData: SmvData,
+    ): Promise<VerificationResult[]> {
+        if (fdsData.chid === smvData.chid) {
+            return [success(`CHIDs match, ${fdsData.chid} = ${smvData.chid}`)];
+        } else {
+            return [
+                failure(`CHIDs don't match, ${fdsData.chid} ≠ ${smvData.chid}`),
+            ];
+        }
+    },
+};
+
+export const hrrRealised: Test = {
+    id: "matching.hrr",
+    stages: "inout",
+    func: async function (
+        fdsData: FdsData,
+        smvData: SmvData,
+    ): Promise<VerificationResult[]> {
+        const hrrSpec = fdsData.hrrSpec;
+        if (!hrrSpec || hrrSpec.type === "composite") return [];
+        const base = await smvData.getHrr();
+        if (!base) return [];
+        const diffVec = generateHrrRelDiff(hrrSpec, base);
+        // Ignoring the first 60 s, see if HRR exceeds a 10% bound on target. If
+        // it does, issue warning, if it does for longer than 10 s issue
+        // failure.
+        let occurs = false;
+        let start = undefined;
+        let maxPeriod = 0;
+        let totalTime = 0;
+        for (const p of diffVec.values) {
+            // ignore the first 60 s
+            if (p.x <= 60) continue;
+            if (Math.abs(p.y) > 0.1) {
+                occurs = true;
+                if (start == undefined) {
+                    start = p.x;
+                }
+            } else {
+                if (start != undefined) {
+                    const period = p.x - start;
+                    start = undefined;
+                    maxPeriod = Math.max(period, maxPeriod);
+
+                    totalTime += period;
+                }
+            }
+        }
+        if (maxPeriod >= 10) {
+            return [
+                failure(
+                    `HRR exceeds 10% bounds for greater than 10 s (${
+                        totalTime.toFixed(2)
+                    } s in total for a maximum of ${maxPeriod.toFixed(2)})`,
+                ),
+            ];
+        } else if (occurs) {
+            return [
+                warning(`HRR exceeds 10% bounds, albeit only momentarily`),
+            ];
+        } else {
+            return [success(`HRR matches specification within 10% bounds`)];
         }
     },
 };

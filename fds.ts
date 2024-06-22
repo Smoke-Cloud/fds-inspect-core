@@ -1,3 +1,5 @@
+import { DataVector } from "./smv.ts";
+
 /** Real 3d location */
 export interface Xyz {
   x: number;
@@ -13,6 +15,15 @@ export interface Xb {
   y2: number;
   z1: number;
   z2: number;
+}
+
+export interface XbMinMax {
+  x_min: number;
+  x_max: number;
+  y_min: number;
+  y_max: number;
+  z_min: number;
+  z_max: number;
 }
 
 /** Integer 3d rectilinear bounds */
@@ -635,6 +646,17 @@ export class FdsData implements FdsFile {
     const trackingFlowViaDuctID = false;
     return trackingFlowMatchingXB.length > 0 || trackingFlowViaDuctID;
   }
+
+  public get hrrSpec(): HrrSpec | undefined {
+    const specs = this.burners.map((burner) => burner.hrrSpec);
+    if (specs.length === 0) {
+      return undefined;
+    } else if (specs.length === 1) {
+      return specs[0];
+    } else {
+      return { type: "composite" };
+    }
+  }
 }
 
 export class Burner {
@@ -686,7 +708,7 @@ export class Burner {
     }
   }
   get maxHrr(): number {
-    return this.fuelArea * this.hrrpua ;
+    return this.fuelArea * this.hrrpua;
   }
   get hrrpua(): number {
     const surfId = this.surfId;
@@ -705,7 +727,127 @@ export class Burner {
       return 0.0;
     }
   }
+  get hrrSpec(): HrrSpec | undefined {
+    // TODO: This requires understanding the burner and it's exposed
+    // surfaces
+    const surface = this.surface;
+    if (!surface) return undefined;
+    const tau_q = surface?.tau_q;
+    return {
+      type: "simple",
+      tau_q,
+      peak: this.maxHrr,
+    };
+  }
 }
+
+export type HrrSpec = HrrSpecSimple | HrrSpecComposite;
+
+export interface HrrSpecSimple {
+  type: "simple";
+  tau_q: number;
+  peak: number;
+}
+
+export interface HrrSpecComposite {
+  type: "composite";
+}
+
+// in Watts
+function calcHrr(hrrSpec: HrrSpecSimple, t: number): number {
+  if (t <= 0) {
+    return 0;
+  } else if (t <= -hrrSpec.tau_q) {
+    const specifiedAlpha = hrrSpec.peak / Math.abs(hrrSpec.tau_q) ** 2;
+    return specifiedAlpha * t ** 2;
+  } else {
+    return hrrSpec.peak;
+  }
+}
+
+function generateHrr(
+  hrrSpec: HrrSpecSimple,
+  base: DataVector,
+): DataVector {
+  const dv: DataVector = {
+    x_name: "Time",
+    y_name: "Realised HRR",
+    values: [],
+  };
+  for (const point of base.values) {
+    dv.values.push({ x: point.x, y: calcHrr(hrrSpec, point.x) });
+  }
+  return dv;
+}
+
+export function generateHrrRelDiff(
+  hrrSpec: HrrSpecSimple,
+  base: DataVector,
+): DataVector {
+  const dv: DataVector = {
+    x_name: "Time",
+    y_name: "Realised HRR",
+    values: [],
+  };
+  for (const point of base.values) {
+    const prescribed = calcHrr(hrrSpec, point.x);
+    const realised = point.y * 1000;
+    const diff = (realised - prescribed) / prescribed;
+    dv.values.push({ x: point.x, y: diff });
+  }
+  return dv;
+}
+
+export function findClosestGrowthRate(
+  hrrSpec: HrrSpec,
+): { growthRate: StdGrowthRate; diff: number } | undefined {
+  if (hrrSpec.type === "composite") return undefined;
+  const specifiedAlpha = hrrSpec.peak / 1000 / Math.abs(hrrSpec.tau_q) ** 2;
+  const std_growth_rates = [
+    StdGrowthRate.NFPASlow,
+    StdGrowthRate.NFPAFast,
+    StdGrowthRate.NFPAMedium,
+    StdGrowthRate.NFPAUltrafast,
+    StdGrowthRate.EurocodeSlow,
+    StdGrowthRate.EurocodeMedium,
+    StdGrowthRate.EurocodeFast,
+    StdGrowthRate.EurocodeUltrafast,
+  ];
+
+  const std_growth_diffs: [StdGrowthRate, number][] = std_growth_rates
+    .map((
+      std_alpha,
+    ) => [
+      std_alpha,
+      Math.abs(
+        (specifiedAlpha - alpha(std_alpha)) /
+          alpha(std_alpha),
+      ),
+    ]);
+  let min_diff = std_growth_diffs[0][1];
+  let matchingGrowthRate: StdGrowthRate | undefined;
+  for (const [growthRate, growth_diff] of std_growth_diffs) {
+    if (growth_diff < min_diff) {
+      min_diff = growth_diff;
+      matchingGrowthRate = growthRate;
+    }
+  }
+  if (matchingGrowthRate) {
+    return { growthRate: matchingGrowthRate, diff: min_diff };
+  }
+}
+
+export function findMatchingGrowthRate(
+  hrrSpec: HrrSpec,
+): StdGrowthRate | undefined {
+  const match = findClosestGrowthRate(hrrSpec);
+  if (match) {
+    if (match.diff < 0.001) {
+      return match.growthRate;
+    }
+  }
+}
+
 export interface BurnerObst {
   type: "obst";
   object: Obst;

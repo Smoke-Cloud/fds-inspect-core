@@ -27,6 +27,8 @@ import {
   flowTempTest,
   formulaTest,
   growthRateTest,
+  hrrRealised,
+  matchingChids,
   maximumVisibilityTest,
   meshesOverlapTest,
   nFramesTest,
@@ -35,14 +37,32 @@ import {
   visibilityFactorTest,
 } from "./checks.ts";
 import type { FdsData } from "./fds.ts";
+import type { SmvData } from "./smv.ts";
 export * as fds from "./fds.ts";
+export * as smv from "./smv.ts";
 export * as summary from "./summary.ts";
 export type { FdsData, FdsFile, Resolution } from "./fds.ts";
+export type { SmvData } from "./smv.ts";
 export type { InputSummary } from "./summary.ts";
 
-export interface Test {
+export type Test = InputTest | OutputTest | InputOutputTest;
+
+export interface InputTest {
   id: string;
-  func: (fdsData: FdsData) => VerificationResult[];
+  stages: "in";
+  func: (fdsData: FdsData) => Promise<VerificationResult[]>;
+}
+
+export interface OutputTest {
+  id: string;
+  stages: "out";
+  func: (smvData: SmvData) => Promise<VerificationResult[]>;
+}
+
+export interface InputOutputTest {
+  id: string;
+  stages: "inout";
+  func: (fdsData: FdsData, smvData: SmvData) => Promise<VerificationResult[]>;
 }
 
 export interface VerificationResult {
@@ -66,20 +86,61 @@ export const stdTestList: Test[] = [
   spkDetCeilingTest,
   growthRateTest,
   burnerExistenceTest,
+  matchingChids,
+  hrrRealised,
 ];
 
 /** Given information from an FDS file, run a set of tests.
  * @param fdsData The JSON object obtained from FDS
  * @returns A summary of test results
  */
-export function verifyInput(
-  fdsData: FdsData,
+export async function verifyInput(
   testList: Test[],
-): VerificationOutcome[] {
-  const value: VerificationOutcome[] = testList.flatMap((
-    test,
-  ) => (test.func(fdsData).map((res) => ({ id: test.id, ...res }))));
-  return value;
+  fdsData: FdsData,
+  smvData?: SmvData,
+): Promise<VerificationOutcome[]> {
+  const outcomes: VerificationOutcome[] = [];
+  for (const test of testList) {
+    switch (test.stages) {
+      case "in":
+        {
+          const results = await test.func(fdsData);
+          for (const result of results) {
+            outcomes.push({
+              id: test.id,
+              ...result,
+            });
+          }
+        }
+        break;
+      case "out":
+        {
+          if (!smvData) return [];
+          const results = await test.func(smvData);
+          for (const result of results) {
+            outcomes.push({
+              id: test.id,
+              ...result,
+            });
+          }
+        }
+        break;
+      case "inout":
+        {
+          if (!smvData) return [];
+          const results = await test.func(fdsData, smvData);
+          for (const result of results) {
+            outcomes.push({
+              id: test.id,
+              ...result,
+            });
+          }
+        }
+        break;
+    }
+  }
+
+  return outcomes;
 }
 
 /** Create a new {@link VerificationSummary} without tests that have passed with
