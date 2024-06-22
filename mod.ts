@@ -33,6 +33,7 @@ import {
   visibility_factor,
 } from "./checks.ts";
 import type { FdsFile } from "./fds.ts";
+export * as fds from "./fds.ts";
 
 export interface Test {
   id: string;
