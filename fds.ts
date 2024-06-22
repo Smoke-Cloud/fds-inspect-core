@@ -754,28 +754,45 @@ export interface HrrSpecComposite {
 }
 
 // in Watts
-function calcHrr(hrrSpec: HrrSpecSimple, t: number): number {
+export function calcHrr(hrrSpec: HrrSpecSimple, t: number): number {
+  const specifiedAlpha = hrrSpec.peak / Math.abs(hrrSpec.tau_q) ** 2;
+  return cappedCurve(specifiedAlpha, -hrrSpec.tau_q, t);
+}
+
+export function cappedCurve(alpha: number, capTime: number, t: number): number {
   if (t <= 0) {
     return 0;
-  } else if (t <= -hrrSpec.tau_q) {
-    const specifiedAlpha = hrrSpec.peak / Math.abs(hrrSpec.tau_q) ** 2;
-    return specifiedAlpha * t ** 2;
+  } else if (t <= capTime) {
+    return alpha * t ** 2;
   } else {
-    return hrrSpec.peak;
+    return alpha * capTime ** 2;
   }
 }
 
-function generateHrr(
+export function calcHrrAlpha(alpha: number, t: number): number {
+  if (t <= 0) {
+    return 0;
+  } else {
+    return alpha * t ** 2;
+  }
+}
+
+export function generateHrr(
   hrrSpec: HrrSpecSimple,
   base: DataVector,
+  factor?: number,
 ): DataVector {
   const dv: DataVector = {
-    x_name: "Time",
-    y_name: "Realised HRR",
+    x: { name: "Time", units: "s" },
+    y: { name: "Realised HRR", units: "kW" },
     values: [],
   };
   for (const point of base.values) {
-    dv.values.push({ x: point.x, y: calcHrr(hrrSpec, point.x) });
+    let y = calcHrr(hrrSpec, point.x);
+    if (factor != undefined) {
+      y *= factor;
+    }
+    dv.values.push({ x: point.x, y });
   }
   return dv;
 }
@@ -785,8 +802,8 @@ export function generateHrrRelDiff(
   base: DataVector,
 ): DataVector {
   const dv: DataVector = {
-    x_name: "Time",
-    y_name: "Realised HRR",
+    x: { name: "Time", units: "s" },
+    y: { name: "Realised HRR", units: "kW" },
     values: [],
   };
   for (const point of base.values) {

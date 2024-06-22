@@ -1,7 +1,14 @@
+import { string } from "jsr:@cliffy/flags@1.0.0-rc.4";
 import type { Xyz } from "./fds.ts";
 import type { IjkBounds, XbMinMax } from "./fds.ts";
 import * as csv from "jsr:@std/csv@0.224.3";
 import * as path from "jsr:@std/path@0.225.2";
+
+export interface CsvEntry {
+  index: number;
+  filename: string;
+  type: string;
+}
 
 export class SmvData implements ISmvData {
   public version: number;
@@ -14,7 +21,7 @@ export class SmvData implements ISmvData {
     coordinates: IjkBounds;
     dimensions: XbMinMax;
   }[];
-  public csv_files: { index: number; filename: string; type: string }[];
+  public csv_files: CsvEntry[];
   public devices: {
     index: number;
     id: string;
@@ -44,7 +51,7 @@ export class SmvData implements ISmvData {
     this.slices = smvData.slices;
     this.surfaces = smvData.surfaces;
   }
-  public getCsvEntry(type: string) {
+  public getCsvEntry(type: string): CsvEntry | undefined {
     for (const csvEntry of this.csv_files) {
       if (csvEntry.type === type) return csvEntry;
     }
@@ -62,11 +69,11 @@ export class SmvData implements ISmvData {
       csvDataTrimmed,
       { skipFirstRow: true },
     );
-    const dVector: {
-      x_name: string;
-      y_name: string;
-      values: { x: number; y: number }[];
-    } = { x_name: "Time", y_name: "HRR", values: [] };
+    const dVector: DataVector = {
+      x: { name: "Time", units: "s" },
+      y: { name: "HRR", units: "kW" },
+      values: [],
+    };
     for (const record of csvData) {
       const x = record["Time"] ? parseFloat(record["Time"]) : undefined;
       const y = record["HRR"] ? parseFloat(record["HRR"]) : undefined;
@@ -79,8 +86,9 @@ export class SmvData implements ISmvData {
 }
 
 export interface DataVector {
-  x_name: string;
-  y_name: string;
+  name?: string;
+  x: { name: string; units: string };
+  y: { name: string; units: string };
   values: { x: number; y: number }[];
 }
 
