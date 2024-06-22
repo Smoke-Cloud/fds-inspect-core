@@ -115,7 +115,7 @@ export async function verifyInput(
         break;
       case "out":
         {
-          if (!smvData) return [];
+          if (!smvData) continue;
           const results = await test.func(smvData);
           for (const result of results) {
             outcomes.push({
@@ -127,7 +127,7 @@ export async function verifyInput(
         break;
       case "inout":
         {
-          if (!smvData) return [];
+          if (!smvData) continue;
           const results = await test.func(fdsData, smvData);
           for (const result of results) {
             outcomes.push({
@@ -139,7 +139,6 @@ export async function verifyInput(
         break;
     }
   }
-
   return outcomes;
 }
 
