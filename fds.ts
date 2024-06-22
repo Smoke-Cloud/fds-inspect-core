@@ -54,8 +54,8 @@ export class Mesh implements IMesh {
     this.ijk = mesh.ijk;
     this.dimensions = mesh.dimensions;
     this.cell_sizes = mesh.cell_sizes;
-    this.vents = mesh.vents.map((vent) => new Vent(this.fdsData, vent));
-    this.obsts = mesh.obsts.map((obst) => new Obst(this.fdsData, obst));
+    this.vents = (mesh.vents ?? []).map((vent) => new Vent(this.fdsData, vent));
+    this.obsts = (mesh.obsts ?? []).map((obst) => new Obst(this.fdsData, obst));
   }
 }
 
@@ -140,10 +140,6 @@ export interface IDevc {
   points: DevcPoint[];
 }
 
-function pointBeneathCeiling(point: DevcPoint): boolean {
-  return point.init_solid_zplus !== false;
-}
-
 export class Devc implements IDevc {
   public index: number;
   public id: string;
@@ -179,30 +175,30 @@ export class Devc implements IDevc {
     this.points = devc.points;
   }
   // TODO: check for flow
-  public get devcIsSprinkler(): boolean {
+  public get isSprinkler(): boolean {
     if (this.prop_id) {
       const prop = this.fdsData.props.find((prop) => prop.id === this.prop_id);
       if (!prop) return false;
-      return prop.isSprinklerProp;
+      return prop.isSprinkler;
     } else {
       return false;
     }
   }
 
-  public get devcIsThermalDetector(): boolean {
+  public get isThermalDetector(): boolean {
     if (this.prop_id) {
       const prop = this.fdsData.props.find((prop) => prop.id === this.prop_id);
       if (!prop) return false;
-      return prop.isThermalDetectorProp;
+      return prop.isThermalDetector;
     } else {
       return false;
     }
   }
-  public devcIsSmokeDetector(): boolean {
+  public get isSmokeDetector(): boolean {
     if (this.prop_id) {
       const prop = this.fdsData.props.find((prop) => prop.id === this.prop_id);
       if (!prop) return false;
-      return prop.isSmokeDetectorProp;
+      return prop.isSmokeDetector;
     } else {
       return false;
     }
@@ -222,7 +218,9 @@ export class Devc implements IDevc {
   /// TODO: This is more complicated as it may not be a solid cell, but a solid
   /// surface. This is exacerbated by being on a mesh boundary.
   public get devcBeneathCeiling(): boolean {
-    return this.points.every(pointBeneathCeiling);
+    return this.points.every((point: DevcPoint) =>
+      point.init_solid_zplus !== false
+    );
   }
   /// Check if a device is stuck in a solid. Returns Nothing if it's not a
   /// sensible question (e.g. it is not a point device).
@@ -281,9 +279,7 @@ export class Surf implements ISurf {
     return this.mlrpua > 0 || this.hrrpua > 0;
   }
   get hasFlow(): boolean {
-    return this.mlrpua != null ||
-      this.hrrpua != null ||
-      this.vel != null ||
+    return this.vel != null ||
       this.volume_flow != null;
   }
 }
@@ -329,15 +325,15 @@ export class Prop implements IProp {
     this.particle_velocity = prop.particle_velocity;
   }
 
-  public get isThermalDetectorProp(): boolean {
+  public get isThermalDetector(): boolean {
     return this.quantity === "LINK TEMPERATURE";
   }
 
-  public get isSprinklerProp(): boolean {
+  public get isSprinkler(): boolean {
     return this.quantity === "SPRINKLER LINK TEMPERATURE";
   }
 
-  public get isSmokeDetectorProp(): boolean {
+  public get isSmokeDetector(): boolean {
     return this.quantity === "CHAMBER OBSCURATION";
   }
 }
@@ -548,11 +544,13 @@ export class FdsData implements FdsFile {
     this.visibility_factor = fdsFile.visibility_factor;
     this.dump = fdsFile.dump;
     this.time = fdsFile.time;
-    this.surfaces = fdsFile.surfaces.map((surf) => new Surf(this, surf));
-    this.meshes = fdsFile.meshes.map((mesh) => new Mesh(this, mesh));
-    this.devices = fdsFile.devices.map((devc) => new Devc(this, devc));
+    this.surfaces = (fdsFile.surfaces ?? []).map((surf) =>
+      new Surf(this, surf)
+    );
+    this.meshes = (fdsFile.meshes ?? []).map((mesh) => new Mesh(this, mesh));
+    this.devices = (fdsFile.devices ?? []).map((devc) => new Devc(this, devc));
     this.hvac = fdsFile.hvac;
-    this.props = fdsFile.props.map((prop) => new Prop(this, prop));
+    this.props = (fdsFile.props ?? []).map((prop) => new Prop(this, prop));
     this.parts = fdsFile.parts;
     this.reacs = fdsFile.reacs;
   }
@@ -688,7 +686,7 @@ export class Burner {
     }
   }
   get maxHrr(): number {
-    return this.fuelArea * this.hrrpua / 1000;
+    return this.fuelArea * this.hrrpua ;
   }
   get hrrpua(): number {
     const surfId = this.surfId;

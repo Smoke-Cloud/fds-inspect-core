@@ -65,19 +65,20 @@ export const flowTempTest: Test = {
     func: function (fdsData: FdsData): VerificationResult[] {
         const testResults = [];
         // List of surfaces that should have an ambient temperature.
-        const flowSurfaces = [];
+        const flowSurfaces: Set<string> = new Set();
         for (const mesh of fdsData.meshes) {
             for (const vent of mesh.vents ?? []) {
                 if (!vent.surface) continue;
-                const surface = vent.surface
-                    ? fdsData.getSurface(vent.surface)
-                    : undefined;
-                if (surface) {
-                    flowSurfaces.push(surface);
-                }
+                // const surface = vent.surface
+                //     ? fdsData.getSurface(vent.surface)
+                //     : undefined;
+                flowSurfaces.add(vent.surface);
             }
         }
-        for (const surface of flowSurfaces) {
+        for (const surfaceId of flowSurfaces) {
+            const surface = fdsData.getSurface(surfaceId);
+            if (!surface) continue;
+            if (!surface.hasFlow) continue;
             if (surface.tmp_front == undefined) {
                 testResults.push(success(
                     `Flow Temp for Surface \`${surface.id}\` leaves TMP_FRONT as default`,
@@ -387,13 +388,13 @@ export const deviceInSolidTest: Test = {
 export const spkDetCeilingTest: Test = {
     id: "input.measure.device.underCeiling",
     /// Ensure that sprinklers and smoke detectors are beneath a ceiling.
-    func: function spkDetCeilingTest(fdsData: FdsData): VerificationResult[] {
+    func: function (fdsData: FdsData): VerificationResult[] {
         const nonBeneathCeiling: Devc[] = fdsData
             .devices
             .filter((devc) =>
-                devc.devcIsSprinkler ||
-                devc.devcIsSmokeDetector ||
-                devc.devcIsThermalDetector
+                devc.isSprinkler ||
+                devc.isSmokeDetector ||
+                devc.isThermalDetector
             )
             .filter((devc) => !devc.devcBeneathCeiling);
         if (nonBeneathCeiling.length === 0) {

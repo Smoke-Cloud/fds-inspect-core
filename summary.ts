@@ -138,7 +138,7 @@ export function summarise_input(fdsData: FdsData): InputSummary {
         }
     }
 
-    const sprinklers = fdsData.devices.filter((devc) => devc.devcIsSprinkler);
+    const sprinklers = fdsData.devices.filter((devc) => devc.isSprinkler);
     const n_sprinklers = sprinklers.length;
 
     const sprinkler_activation_temperatures: number[] = [];
@@ -152,7 +152,7 @@ export function summarise_input(fdsData: FdsData): InputSummary {
     sprinkler_activation_temperatures.sort();
 
     const smoke_detectors = fdsData.devices.filter((devc) =>
-        devc.devcIsSmokeDetector()
+        devc.isSmokeDetector
     );
     const n_smoke_detectors = smoke_detectors.length;
     const smoke_detector_obscurations: number[] = [];
