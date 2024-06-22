@@ -34,6 +34,7 @@ import {
 } from "./checks.ts";
 import type { FdsFile } from "./fds.ts";
 export * as fds from "./fds.ts";
+export * as summary from "./summary.ts";
 export type { FdsFile, Resolution } from "./fds.ts";
 export type { InputSummary } from "./summary.ts";
 
