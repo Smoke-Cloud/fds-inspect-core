@@ -2,10 +2,10 @@ import type {
     Burner,
     FdsData,
     IjkBounds,
-    IVent,
     Mesh,
     Obst,
     Resolution,
+    Vent,
     Xb,
 } from "./fds.ts";
 
@@ -51,14 +51,6 @@ export interface InputSummary {
     // ndrs: number[][];
     /** Ceiling heights found where the greatest horizontal extent occurs */
     ceiling_heights: { height: number; area: number }[];
-}
-
-function flowRate(fdsData: FdsData, vent: IVent): number | undefined {
-    const surface = fdsData.surfaces.find((surface) =>
-        surface.id === vent.surface
-    );
-    if (!surface) return;
-    return surface.volume_flow;
 }
 
 function heat_of_combustion(fdsData: FdsData): number {
@@ -121,22 +113,16 @@ export function summarise_input(fdsData: FdsData): InputSummary {
     const simulation_length = fdsData.time.end - fdsData.time.begin;
     // let ndrs: Vec<Vec<_>> = burners.iter().map(|burner| burner.ndr()).collect();
 
-    const supplies: IVent[] = [];
-    let total_supply_rate = 0;
-    const extracts: IVent[] = [];
-    let total_extract_rate = 0;
-    for (const vent of fdsData.meshes.flatMap((mesh) => mesh.vents ?? [])) {
-        const flow = flowRate(fdsData, vent);
-        if (flow != undefined) {
-            if (flow < 0) {
-                supplies.push(vent);
-                total_supply_rate += flow;
-            } else if (flow > 0) {
-                extracts.push(vent);
-                total_extract_rate += flow;
-            }
-        }
-    }
+    const supplies = fdsData.supplies;
+    const total_supply_rate = supplies.reduce(
+        (acc, vent) => acc + (vent.flowRate ?? 0),
+        0,
+    );
+    const extracts: Vent[] = fdsData.extracts;
+    const total_extract_rate = extracts.reduce(
+        (acc, vent) => acc + (vent.flowRate ?? 0),
+        0,
+    );
 
     const sprinklers = fdsData.devices.filter((devc) => devc.isSprinkler);
     const n_sprinklers = sprinklers.length;

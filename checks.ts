@@ -7,6 +7,7 @@ import {
     intersect,
     type IVent,
     type Reac,
+    type Vent,
 } from "./fds.ts";
 import type { SmvData, Test, VerificationResult } from "./mod.ts";
 
@@ -345,12 +346,11 @@ export const flowCoverageTest: Test = {
         fdsData: FdsData,
     ): Promise<VerificationResult[]> {
         // it is also possible that other objects (such as OBST have flow)
-        const vents = fdsData.meshes.flatMap((mesh) => mesh.vents ?? []);
         // TODO: obsts
         // const obsts = getObsts(fdsData);
         // vents which may have a flow
-        const ventsWithFlows: IVent[] = vents.filter((vent) =>
-            fdsData.ventHasFlow(vent)
+        const ventsWithFlows: Vent[] = fdsData.supplies.concat(
+            fdsData.extracts,
         );
         // obsts that have surfaces with flows
         // const obstWithFlows: any[] = obsts.filter((obst) =>

@@ -68,6 +68,10 @@ export class Mesh implements IMesh {
     this.vents = (mesh.vents ?? []).map((vent) => new Vent(this.fdsData, vent));
     this.obsts = (mesh.obsts ?? []).map((obst) => new Obst(this.fdsData, obst));
   }
+  /** Get vents that have a proscribed flow associated with them (excluding burners). */
+  get flowVents(): Vent[] {
+    return this.vents.filter((vent) => vent.hasFlow);
+  }
 }
 
 /** Reaction information */
@@ -293,6 +297,14 @@ export class Surf implements ISurf {
     return this.vel != null ||
       this.volume_flow != null;
   }
+  get isSupply(): boolean {
+    return this.vel < 0 ||
+      this.volume_flow < 0;
+  }
+  get isExtract(): boolean {
+    return this.vel > 0 ||
+      this.volume_flow > 0;
+  }
 }
 
 /** Hvac node information */
@@ -443,6 +455,30 @@ export class Vent implements IVent {
     }
     return false;
   }
+  public get surfaceDef(): Surf | undefined {
+    return this.fdsData.surfaces.find((surface) => surface.id === this.surface);
+  }
+  get flowRate(): number | undefined {
+    const surface = this.surfaceDef;
+    if (!surface) return undefined;
+    // TODO: consider VEL as well
+    return surface.volume_flow;
+  }
+  get hasFlow(): boolean {
+    const surface = this.surfaceDef;
+    if (!surface) return false;
+    return surface.hasFlow;
+  }
+  get isSupply(): boolean {
+    const surface = this.surfaceDef;
+    if (!surface) return false;
+    return surface.isSupply;
+  }
+  get isExtract(): boolean {
+    const surface = this.surfaceDef;
+    if (!surface) return false;
+    return surface.isExtract;
+  }
 }
 
 /** Obstruction information */
@@ -570,6 +606,7 @@ export class FdsData implements FdsFile {
     // Iterate through all the OBSTs and VENTs and determine which ones are
     // burners.
     const burners: Burner[] = [];
+    // TODO: Sometimes a single burner occurs in two different meshes.
     for (const obst of this.meshes.flatMap((mesh) => mesh.obsts ?? [])) {
       if (obst.isBurner) {
         const burner = new Burner(
@@ -589,6 +626,42 @@ export class FdsData implements FdsFile {
       }
     }
     return burners;
+  }
+  private get uniqueVents() {
+    const all: ({ vent: Vent; meshIndex: number })[] = this.meshes
+      .flatMap((mesh) => {
+        const supplies = mesh.vents.map((
+          vent,
+        ) => ({
+          vent,
+          meshIndex: mesh.index,
+        }));
+        return supplies;
+      });
+    const uniqueVents: Vent[] = [];
+    // TODO: this is fairly inefficient.
+    for (const { vent } of all) {
+      let matchingVent;
+      for (const existingVent of uniqueVents) {
+        if (vent.id === existingVent.id) {
+          if (dimensionsMatch(vent.dimensions, existingVent.dimensions)) {
+            matchingVent = existingVent;
+            break;
+          }
+        }
+      }
+      if (matchingVent) continue;
+      uniqueVents.push(vent);
+    }
+    return uniqueVents;
+  }
+  /** Get supplies, deduplicating where they occur in multiple meshes */
+  public get supplies(): Vent[] {
+    return this.uniqueVents.filter((vent) => vent.isSupply);
+  }
+  /** Get extracts, deduplicating where they occur in multiple meshes */
+  public get extracts(): Vent[] {
+    return this.uniqueVents.filter((vent) => vent.isExtract);
   }
 
   public getSurface(
