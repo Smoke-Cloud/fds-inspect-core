@@ -1,4 +1,4 @@
-import { DataVector } from "./smv.ts";
+import type { DataVector } from "./smv.ts";
 
 /** Real 3d location */
 export interface Xyz {
