@@ -1011,11 +1011,14 @@ export function alpha(growthRate: StdGrowthRate): number {
 }
 
 /// Test if two XBs intersect (i.e. their bounding boxes). Two bounding boxes
-/// intersect of all 3 dimensions have overlap. EQ is considered overlap.
+/// intersect of all 3 dimensions have overlap.
 export function intersect(a: Xb, b: Xb): boolean {
-  const intersect_x = (a.x2 > b.x1) && (b.x2 > a.x1);
-  const intersect_y = (a.y2 > b.y1) && (b.y2 > a.y1);
-  const intersect_z = (a.z2 > b.z1) && (b.z2 > a.z1);
+  // This epsilon value is designed to account for Pyrosims adjustments around
+  // zero.
+  const epsilon = 1e-14;
+  const intersect_x = (a.x2 - b.x1 > epsilon) && (b.x2 - a.x1 > epsilon);
+  const intersect_y = (a.y2 - b.y1 > epsilon) && (b.y2 - a.y1 > epsilon);
+  const intersect_z = (a.z2 - b.z1 > epsilon) && (b.z2 - a.z1 > epsilon);
   return intersect_x && intersect_y && intersect_z;
 }
 
