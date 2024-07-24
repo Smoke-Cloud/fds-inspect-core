@@ -727,9 +727,30 @@ export class FdsData implements FdsFile {
     } else if (specs.length === 1) {
       return specs[0];
     } else {
-      return { type: "composite" };
+      try {
+        const defSpecs: HrrSpec[] = specs.filter((x) =>
+          x !== undefined
+        ) as HrrSpec[];
+        return addHrrSpecs(defSpecs);
+      } catch {
+        return { type: "composite" };
+      }
     }
   }
+}
+
+function addHrrSpecs(hrrSpecs: HrrSpec[]): HrrSpec {
+  const accHrrSpec = hrrSpecs[0];
+  if (accHrrSpec.type !== "simple") throw new Error("Cannot add complex HRRs");
+  for (let i = 1; i < hrrSpecs.length; i++) {
+    const hrrSpec = hrrSpecs[i];
+    if (hrrSpec.type !== "simple") throw new Error("Cannot add complex HRRs");
+    if (hrrSpec.tau_q !== accHrrSpec.tau_q) {
+      throw new Error("Cannot add simple HRRs with different TAU_Q values");
+    }
+    accHrrSpec.peak += hrrSpec.peak;
+  }
+  return accHrrSpec;
 }
 
 export class Burner {
