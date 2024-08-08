@@ -461,16 +461,17 @@ export const nonInertMaterialsTest: Test = {
     let nInerts = 0;
     for (const mesh of fdsData.meshes) {
       for (const obst of mesh.obsts) {
-        if (obst.hasInertSurface) nInerts++;
+        // If the obstruction is a burner, its other surfaces can be INERT
+        if (obst.hasInertSurface && !obst.isBurner) nInerts++;
       }
     }
     if (nInerts > 0) {
       return [failure(
-        `There are ${nInerts} OBSTs with an \`INERT\` surface type`,
+        `There are ${nInerts} non-burner OBSTs with an \`INERT\` surface type`,
       )];
     } else {
       return [success(
-        `There are no OBSTs with an \`INERT\` surface type`,
+        `There are no non-burner OBSTs with an \`INERT\` surface type`,
       )];
     }
   },
