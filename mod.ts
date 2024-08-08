@@ -15,7 +15,7 @@
  *   stdTestList,
  * } from "@smoke-cloud/fds-inspect-core";
  *
- * verifyInput(fdsData, stdTestList)
+ * verifyInput(stdTestList, fdsData)
  * ```
  */
 
@@ -27,6 +27,7 @@ import {
   flowTempTest,
   formulaTest,
   growthRateTest,
+  nonInertMaterialsTest,
   hrrRealised,
   matchingChids,
   maximumVisibilityTest,
@@ -85,6 +86,7 @@ export const stdTestList: Test[] = [
   deviceInSolidTest,
   spkDetCeilingTest,
   growthRateTest,
+  nonInertMaterialsTest,
   burnerExistenceTest,
   matchingChids,
   hrrRealised,

@@ -570,6 +570,16 @@ export class Obst implements IObst {
     }
     return false;
   }
+  public get hasInertSurface(): boolean {
+    console.log(this.surfaces)
+    if (this.surfaces?.x_min === "INERT") return true;
+    if (this.surfaces?.x_max === "INERT") return true;
+    if (this.surfaces?.y_min === "INERT") return true;
+    if (this.surfaces?.y_max === "INERT") return true;
+    if (this.surfaces?.z_min === "INERT") return true;
+    if (this.surfaces?.z_max === "INERT") return true;
+    return false;
+  }
 }
 
 export class FdsData implements FdsFile {

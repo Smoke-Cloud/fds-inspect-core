@@ -42,8 +42,8 @@ export const meshesOverlapTest: Test = {
     // Clone a list of meshes.
     const intersections = [];
     // console.log(fdsData.meshes.map(mesh=>mesh.dimensions))
-    for (const meshA of fdsData.meshes) {
-      for (const meshB of fdsData.meshes) {
+    for (const meshA of (fdsData.meshes ?? [])) {
+      for (const meshB of (fdsData.meshes ?? [])) {
         if (meshA.index === meshB.index) continue;
         if (intersect(meshA.dimensions, meshB.dimensions)) {
           console.log(
@@ -87,7 +87,7 @@ export const flowTempTest: Test = {
     const testResults = [];
     // List of surfaces that should have an ambient temperature.
     const flowSurfaces: Set<string> = new Set();
-    for (const mesh of fdsData.meshes) {
+    for (const mesh of (fdsData.meshes ?? [])) {
       for (const vent of mesh.vents ?? []) {
         if (!vent.surface) continue;
         // const surface = vent.surface
@@ -235,7 +235,7 @@ export const formulaTest: Test = {
       mkTestProp("n", (reac: Reac) => reac.n, new Set([0.04])),
       mkTestProp("o", (reac: Reac) => reac.o, new Set([0.46])),
     ];
-    const test_results = [];
+    const test_results: VerificationResult[] = [];
     if (!fdsData.reacs[0]) {
       test_results.push(
         failure("No REAC has been specified"),
@@ -446,6 +446,32 @@ export const spkDetCeilingTest: Test = {
           )
         );
       return issues;
+    }
+  },
+};
+
+/// Check that a default material has been specified.
+export const nonInertMaterialsTest: Test = {
+  id: "input.obsts.nonInertMaterials",
+  stages: "in",
+  func: async function (
+    fdsData: FdsData,
+  ): Promise<VerificationResult[]> {
+    // For each obst check that none of the surfaces are INERT
+    let nInerts = 0;
+    for (const mesh of fdsData.meshes) {
+      for (const obst of mesh.obsts) {
+        if (obst.hasInertSurface) nInerts++;
+      }
+    }
+    if (nInerts > 0) {
+      return [failure(
+        `There are ${nInerts} OBSTs with an \`INERT\` surface type`,
+      )];
+    } else {
+      return [success(
+        `There are no OBSTs with an \`INERT\` surface type`,
+      )];
     }
   },
 };
