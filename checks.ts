@@ -9,12 +9,7 @@ import {
   type Reac,
   type Vent,
 } from "./fds.ts";
-import {
-  fds,
-  type SmvData,
-  type Test,
-  type VerificationResult,
-} from "./mod.ts";
+import type { SmvData, Test, VerificationResult } from "./mod.ts";
 
 function success(
   message: string,
@@ -609,6 +604,38 @@ export const hrrRealised: Test = {
       ];
     } else {
       return [success(`HRR matches specification within 10% bounds`)];
+    }
+  },
+};
+
+/// Are we outputting plot3d?
+export const plot3dTest: Test = {
+  id: "input.output.plot3d",
+  stages: "in",
+  func: async function (fdsData: FdsData): Promise<VerificationResult[]> {
+    const plot3dQuantities: string[] = Array.from(
+      fdsData.dump.plot3d_quantity.map((s) => s.trim()),
+    );
+    const hasPlot3d = Boolean(plot3dQuantities.find((s) => s.length > 0));
+    // Check that the dump frequency is enough to actually output some results
+    const plot3dFrequency =
+      fdsData.dump.dt_pl3d < (fdsData.time.end - fdsData.time.begin);
+    if (hasPlot3d && plot3dFrequency) {
+      return [
+        success(
+          `Outputs plot3d values (${plot3dQuantities}) every ${fdsData.dump.dt_pl3d} s`,
+        ),
+      ];
+    } else if (!plot3dFrequency) {
+      return [failure(
+        `Plot3d dumps every ${fdsData.dump.dt_pl3d} s, but the simulation is only ${
+          fdsData.time.end - fdsData.time.begin
+        } s long. No data will be outputted.`,
+      )];
+    } else {
+      return [failure(
+        `Has no plot3d`,
+      )];
     }
   },
 };

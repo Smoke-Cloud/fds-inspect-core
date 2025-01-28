@@ -383,6 +383,8 @@ export interface FdsFile {
   visibility_factor: number;
   dump: {
     nframes: number;
+    plot3d_quantity: string[];
+    dt_pl3d: number;
   };
   time: {
     begin: number;
@@ -585,7 +587,7 @@ export class FdsData implements FdsFile {
   public chid: string;
   public ec_ll: number;
   public visibility_factor: number;
-  public dump: { nframes: number };
+  public dump: { nframes: number; plot3d_quantity: string[]; dt_pl3d: number };
   public time: { begin: number; end: number };
   public surfaces: Surf[];
   public meshes: Mesh[];

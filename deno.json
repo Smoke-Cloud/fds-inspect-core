@@ -1,7 +1,8 @@
 {
   "name": "@smoke-cloud/fds-inspect-core",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "exports": "./mod.ts",
+  "license": "AGPL-3.0-or-later",
   "tasks": {
     "dev": "deno run --watch main.ts"
   }

@@ -27,12 +27,13 @@ import {
   flowTempTest,
   formulaTest,
   growthRateTest,
-  nonInertMaterialsTest,
   hrrRealised,
   matchingChids,
   maximumVisibilityTest,
   meshesOverlapTest,
   nFramesTest,
+  nonInertMaterialsTest,
+  plot3dTest,
   sootYieldTest,
   spkDetCeilingTest,
   visibilityFactorTest,
@@ -90,6 +91,7 @@ export const stdTestList: Test[] = [
   burnerExistenceTest,
   matchingChids,
   hrrRealised,
+  plot3dTest,
 ];
 
 /** Given information from an FDS file, run a set of tests.
