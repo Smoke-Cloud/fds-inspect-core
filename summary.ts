@@ -338,7 +338,7 @@ export function boundingExtent(meshes: Mesh[]): Xb | undefined {
   return current;
 }
 
-export function dimensionExtent(
+function _dimensionExtent(
   axis: "x" | "y" | "z",
   meshes: Mesh[],
   coord: [number, number],
@@ -401,7 +401,7 @@ export interface RegionExtents {
   subs: RegionExtents[];
 }
 
-export function clearHeights(
+function clearHeights(
   regionExtents: CellMap,
 ): { height: number; area: number }[] {
   // TODO: this is incorrect
@@ -479,7 +479,7 @@ function meshAreaZ(mesh: Mesh): number {
     (mesh.dimensions.y2 - mesh.dimensions.y1);
 }
 
-export function greatestExtent(axis: "x" | "y" | "z", fdsFile: FdsData): {
+function greatestExtent(axis: "x" | "y" | "z", fdsFile: FdsData): {
   start: number;
   end: number;
   area: number;
@@ -494,7 +494,7 @@ export function greatestExtent(axis: "x" | "y" | "z", fdsFile: FdsData): {
   return greatestExtent;
 }
 
-export function getCeilingHeights(
+function getCeilingHeights(
   fdsFile: FdsData,
 ): { height: number; area: number }[] {
   const g = greatestExtent("z", fdsFile);
@@ -537,6 +537,9 @@ export function getCeilingHeights(
 //   }
 // }
 
+/**
+ * The extents of a given mesh.
+ */
 export class CellMap {
   public extents: { start: number; end: number }[][] = [];
   public i_max: number;
@@ -566,7 +569,7 @@ export class CellMap {
   }
 }
 
-export function getRegionExtents(
+function getRegionExtents(
   fdsFile: FdsData,
   val: number,
 ): CellMap[] {

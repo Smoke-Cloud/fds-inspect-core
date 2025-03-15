@@ -69,7 +69,7 @@ export class Mesh implements IMesh {
     this.obsts = (mesh.obsts ?? []).map((obst) => new Obst(this.fdsData, obst));
   }
   /** Get vents that have a proscribed flow associated with them (excluding burners). */
-  get flowVents(): Vent[] {
+  public get flowVents(): Vent[] {
     return this.vents.filter((vent) => vent.hasFlow);
   }
 }
@@ -189,7 +189,9 @@ export class Devc implements IDevc {
     this.quantities = devc.quantities;
     this.points = devc.points;
   }
+
   // TODO: check for flow
+  /** Is this device a sprinkler? */
   public get isSprinkler(): boolean {
     if (this.prop_id) {
       const prop = this.fdsData.props.find((prop) => prop.id === this.prop_id);
@@ -200,6 +202,7 @@ export class Devc implements IDevc {
     }
   }
 
+  /** Is this device a heat detector (this exlcudes sprinklers)? */
   public get isThermalDetector(): boolean {
     if (this.prop_id) {
       const prop = this.fdsData.props.find((prop) => prop.id === this.prop_id);
@@ -209,6 +212,8 @@ export class Devc implements IDevc {
       return false;
     }
   }
+
+  /** Is this device a smoke detector? */
   public get isSmokeDetector(): boolean {
     if (this.prop_id) {
       const prop = this.fdsData.props.find((prop) => prop.id === this.prop_id);
@@ -219,6 +224,7 @@ export class Devc implements IDevc {
     }
   }
 
+  /** Is this a flow-measuring device? */
   public get isFlowDevice(): boolean {
     const firstQuantity = this.quantities[0];
     if (!firstQuantity) return false;
@@ -227,18 +233,19 @@ export class Devc implements IDevc {
         this.spatial_statistic === "SURFACE INTEGRAL");
   }
 
-  /// Check if the cell directly above a device is solid. This is useful to make
-  /// sure that sprinklers and smoke detectors are directly beneath the a ceiling.
-  ///
-  /// TODO: This is more complicated as it may not be a solid cell, but a solid
-  /// surface. This is exacerbated by being on a mesh boundary.
+  /**
+   * Check if the cell directly above a device is solid. This is useful to make
+   * sure that sprinklers and smoke detectors are directly beneath the a ceiling.
+   */
+  // TODO: This is more complicated as it may not be a solid cell, but a solid
+  // surface. This is exacerbated by being on a mesh boundary.
   public get devcBeneathCeiling(): boolean {
     return this.points.every((point: DevcPoint) =>
       point.init_solid_zplus !== false
     );
   }
-  /// Check if a device is stuck in a solid. Returns Nothing if it's not a
-  /// sensible question (e.g. it is not a point device).
+
+  /** Check if a device is stuck in a solid. */
   public get stuckInSolid(): boolean {
     for (const point of this.points) {
       if (point.init_solid) {
@@ -290,18 +297,34 @@ export class Surf implements ISurf {
     this.vel = surf.vel;
     this.volume_flow = surf.volume_flow;
   }
-  get isBurner(): boolean {
+
+  /**
+   * Does this surface have a specified HRR (e.g. via `MLRPUA` or `HRRPUA`)?
+   */
+  public get isBurner(): boolean {
     return this.mlrpua > 0 || this.hrrpua > 0;
   }
-  get hasFlow(): boolean {
+
+  /**
+   * Does this surface have a flow specified (e.g. via `VOLUME_FLOW` or `VEL`)?
+   */
+  public get hasFlow(): boolean {
     return this.vel != null ||
       this.volume_flow != null;
   }
-  get isSupply(): boolean {
+
+  /**
+   * Does this surface have a flow specified which supplies gas to the domain?
+   */
+  public get isSupply(): boolean {
     return this.vel < 0 ||
       this.volume_flow < 0;
   }
-  get isExtract(): boolean {
+
+  /**
+   * Does this surface have a flow specified which extracts gas from the domain?
+   */
+  public get isExtract(): boolean {
     return this.vel > 0 ||
       this.volume_flow > 0;
   }
@@ -348,14 +371,17 @@ export class Prop implements IProp {
     this.particle_velocity = prop.particle_velocity;
   }
 
+  /** Does this `PROP` defined a heat detector (this excludes sprinklers)? */
   public get isThermalDetector(): boolean {
     return this.quantity === "LINK TEMPERATURE";
   }
 
+  /** Does this `PROP` defined a sprinkler? */
   public get isSprinkler(): boolean {
     return this.quantity === "SPRINKLER LINK TEMPERATURE";
   }
 
+  /** Does this `PROP` defined a smoke detector? */
   public get isSmokeDetector(): boolean {
     return this.quantity === "CHAMBER OBSCURATION";
   }
@@ -441,6 +467,10 @@ export class Vent implements IVent {
     this.dimensions = vent.dimensions;
     this.fds_area = vent.fds_area;
   }
+
+  /**
+   * Is this vent a burner?
+   */
   public get isBurner(): boolean {
     const surfaces = [];
     if (this.surface) {
@@ -457,26 +487,46 @@ export class Vent implements IVent {
     }
     return false;
   }
+
+  /**
+   * What (if any) is the surface applied to this vent?
+   */
   public get surfaceDef(): Surf | undefined {
     return this.fdsData.surfaces.find((surface) => surface.id === this.surface);
   }
-  get flowRate(): number | undefined {
+
+  /**
+   * What is the flow rate of this vent?
+   */
+  public get flowRate(): number | undefined {
     const surface = this.surfaceDef;
     if (!surface) return undefined;
     // TODO: consider VEL as well
     return surface.volume_flow;
   }
-  get hasFlow(): boolean {
+
+  /**
+   * Does this vent have a flow specified?
+   */
+  public get hasFlow(): boolean {
     const surface = this.surfaceDef;
     if (!surface) return false;
     return surface.hasFlow;
   }
-  get isSupply(): boolean {
+
+  /**
+   * Does this vent have a flow into the domain specified?
+   */
+  public get isSupply(): boolean {
     const surface = this.surfaceDef;
     if (!surface) return false;
     return surface.isSupply;
   }
-  get isExtract(): boolean {
+
+  /**
+   * Does this vent have a flow out of the domain specified?
+   */
+  public get isExtract(): boolean {
     const surface = this.surfaceDef;
     if (!surface) return false;
     return surface.isExtract;
@@ -551,6 +601,7 @@ export class Obst implements IObst {
     this.fds_area = obst.fds_area;
   }
 
+  /** Is this a burner? */
   public get isBurner(): boolean {
     const surfaces = [];
     if (this.surfaces) {
@@ -572,6 +623,8 @@ export class Obst implements IObst {
     }
     return false;
   }
+
+  /** Does this have any inert surfaces? */
   public get hasInertSurface(): boolean {
     if (this.surfaces?.x_min === "INERT") return true;
     if (this.surfaces?.x_max === "INERT") return true;
@@ -613,6 +666,9 @@ export class FdsData implements FdsFile {
     this.reacs = fdsFile.reacs;
   }
 
+  /**
+   * A list of burners. Burners are defined as any geometry feature that has a defined HRR.
+   */
   public get burners(): Burner[] {
     // Iterate through all the OBSTs and VENTs and determine which ones are
     // burners.
@@ -638,6 +694,7 @@ export class FdsData implements FdsFile {
     }
     return burners;
   }
+
   private get uniqueVents() {
     const all: ({ vent: Vent; meshIndex: number })[] = this.meshes
       .flatMap((mesh) => {
@@ -666,15 +723,20 @@ export class FdsData implements FdsFile {
     }
     return uniqueVents;
   }
+
   /** Get supplies, deduplicating where they occur in multiple meshes */
   public get supplies(): Vent[] {
     return this.uniqueVents.filter((vent) => vent.isSupply);
   }
+
   /** Get extracts, deduplicating where they occur in multiple meshes */
   public get extracts(): Vent[] {
     return this.uniqueVents.filter((vent) => vent.isExtract);
   }
 
+  /**
+   * Given the `ID` of a surface return that surface.
+   */
   public getSurface(
     surfaceName: string,
   ): Surf | undefined {
@@ -685,6 +747,10 @@ export class FdsData implements FdsFile {
     }
   }
 
+  /**
+   * Does the given vent have a flow specified across its surface (e.g., does
+   * it have a surface with `VOLUME_FLOW` or `VEL` set)?
+   */
   public ventHasFlow(vent: IVent): boolean {
     // TODO: reenable
     // const linkedHVACs = this.hvac.filter((hvac) =>
@@ -699,8 +765,10 @@ export class FdsData implements FdsFile {
     return isHVAC || hasSurfFlow;
   }
 
-  /// Take the xb dimensions of a vent and see if there is a flow vent with the
-  /// matching dimensions, or a device that references it as a duct node.
+  /**
+   * Take the xb dimensions of a vent and see if there is a flow vent with the
+   * matching dimensions, or a device that references it as a duct node.
+   */
   public hasFlowDevc(vent: IVent): boolean {
     const flow_devcs = this.devices.filter((devc) => devc.isFlowDevice);
     // Find flow devices that match the vents XB
@@ -731,6 +799,10 @@ export class FdsData implements FdsFile {
     return trackingFlowMatchingXB.length > 0 || trackingFlowViaDuctID;
   }
 
+  /**
+   * What is the defined HRR for this model (if there is one). This will return undefined if there is no HRR specified
+   * or it relies on systems such as pyrolysis.
+   */
   public get hrrSpec(): HrrSpec | undefined {
     const specs = this.burners.map((burner) => burner.hrrSpec);
     if (specs.length === 0) {
@@ -750,6 +822,10 @@ export class FdsData implements FdsFile {
   }
 }
 
+/**
+ * Combine multiple HRR specs into one. This will generally result in a
+ * composite HRR spec.
+ */
 function addHrrSpecs(hrrSpecs: HrrSpec[]): HrrSpec {
   const accHrrSpec = hrrSpecs[0];
   if (accHrrSpec.type !== "simple") throw new Error("Cannot add complex HRRs");
@@ -764,6 +840,11 @@ function addHrrSpecs(hrrSpecs: HrrSpec[]): HrrSpec {
   return accHrrSpec;
 }
 
+// TODO: it is possible that a burner obst has multiple surfaces/areas contributing
+// to it. We may need to reintroduce the concept of a burner panel.
+/**
+ * A Burner is an object within a model that has a specified HRR, generally an `OBST` or a `VENT`.
+ */
 export class Burner {
   private object: BurnerObst | BurnerVent;
   constructor(
@@ -773,7 +854,10 @@ export class Burner {
     this.object = object;
   }
 
-  get fuelArea(): number {
+  /**
+   * The area of the burner.
+   */
+  public get fuelArea(): number {
     switch (this.object.type) {
       case "obst":
         // TODO: currently just assumes zmax is being used
@@ -785,7 +869,8 @@ export class Burner {
     }
   }
   // TODO: assumes only zmax is being used
-  get surfId(): string | undefined {
+  /** What `SURF` id is used for this burner. */
+  public get surfId(): string | undefined {
     switch (this.object.type) {
       case "obst":
         // TODO: currently just assumes zmax is being used
@@ -797,7 +882,8 @@ export class Burner {
     }
   }
 
-  get surface(): Surf | undefined {
+  /** What is the surface of this burner? */
+  public get surface(): Surf | undefined {
     switch (this.object.type) {
       case "obst": {
         const surfaces = this.object.object.surfaces;
@@ -812,10 +898,18 @@ export class Burner {
         throw new Error("invalid burner type");
     }
   }
-  get maxHrr(): number {
+
+  /**
+   * What is the peak HRR produced by this burner.
+   */
+  public get maxHrr(): number {
     return this.fuelArea * this.hrrpua;
   }
-  get hrrpua(): number {
+
+  /**
+   * What is the peak HRRPUA of this burner?
+   */
+  public get hrrpua(): number {
     const surfId = this.surfId;
     if (!surfId) return 0.0;
     const surface = this.fdsData.surfaces.find((surface) =>
@@ -832,7 +926,11 @@ export class Burner {
       return 0.0;
     }
   }
-  get hrrSpec(): HrrSpec | undefined {
+
+  /**
+   * What is the HRR specification of this burner?
+   */
+  public get hrrSpec(): HrrSpec | undefined {
     // TODO: This requires understanding the burner and it's exposed
     // surfaces
     const surface = this.surface;
@@ -859,12 +957,14 @@ export interface HrrSpecComposite {
 }
 
 // in Watts
+
+/** Calculate the peak HRR (in Watts) of a given HRR specification. */
 export function calcHrr(hrrSpec: HrrSpecSimple, t: number): number {
   const specifiedAlpha = hrrSpec.peak / Math.abs(hrrSpec.tau_q) ** 2;
   return cappedCurve(specifiedAlpha, -hrrSpec.tau_q, t);
 }
 
-export function cappedCurve(alpha: number, capTime: number, t: number): number {
+function cappedCurve(alpha: number, capTime: number, t: number): number {
   if (t <= 0) {
     return 0;
   } else if (t <= capTime) {
@@ -874,14 +974,7 @@ export function cappedCurve(alpha: number, capTime: number, t: number): number {
   }
 }
 
-export function calcHrrAlpha(alpha: number, t: number): number {
-  if (t <= 0) {
-    return 0;
-  } else {
-    return alpha * t ** 2;
-  }
-}
-
+/** Given a HRR specification, generate a {@link DataVector} with that HRR. */
 export function generateHrr(
   hrrSpec: HrrSpecSimple,
   base: DataVector,
@@ -902,6 +995,8 @@ export function generateHrr(
   return dv;
 }
 
+/** Given a HRR specification, generate a {@link DataVector} of the difference
+ * between that HRR and base {@link DataVector}. */
 export function generateHrrRelDiff(
   hrrSpec: HrrSpecSimple,
   base: DataVector,
@@ -920,7 +1015,7 @@ export function generateHrrRelDiff(
   return dv;
 }
 
-export function findClosestGrowthRate(
+function findClosestGrowthRate(
   hrrSpec: HrrSpec,
 ): { growthRate: StdGrowthRate; diff: number } | undefined {
   if (hrrSpec.type === "composite") return undefined;
@@ -959,6 +1054,9 @@ export function findClosestGrowthRate(
   }
 }
 
+/**
+ * Given a {@link HrrSpec} find the {@link StdGrowthRate} which most closely
+ * matches it. */
 export function findMatchingGrowthRate(
   hrrSpec: HrrSpec,
 ): StdGrowthRate | undefined {
@@ -979,6 +1077,9 @@ export interface BurnerVent {
   object: IVent;
 }
 
+/**
+ * Given 2 {@link Xb}s, check if they are identical.
+ */
 export function dimensionsMatch(a: Xb, b: Xb): boolean {
   return a.x1 === b.x1 &&
     a.x2 === b.x2 &&
@@ -988,6 +1089,9 @@ export function dimensionsMatch(a: Xb, b: Xb): boolean {
     a.z2 === b.z2;
 }
 
+/**
+ * Standard growth rates defined in literature.
+ */
 export enum StdGrowthRate {
   NFPASlow = "nfpa-slow",
   NFPAMedium = "nfpa-medium",
@@ -1000,6 +1104,9 @@ export enum StdGrowthRate {
   // Custom(number),
 }
 
+/**
+ * Given a growth rate, return the corresponding alpha value.
+ */
 export function alpha(growthRate: StdGrowthRate): number {
   switch (growthRate) {
     case StdGrowthRate.NFPASlow:
@@ -1021,8 +1128,10 @@ export function alpha(growthRate: StdGrowthRate): number {
   }
 }
 
-/// Test if two XBs intersect (i.e. their bounding boxes). Two bounding boxes
-/// intersect of all 3 dimensions have overlap.
+/**
+ * Test if two XBs intersect (i.e. their bounding boxes). Two bounding boxes
+ * intersect of all 3 dimensions have overlap.
+ */
 export function intersect(a: Xb, b: Xb): boolean {
   // This epsilon value is designed to account for Pyrosims adjustments around
   // zero.

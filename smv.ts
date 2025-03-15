@@ -50,11 +50,20 @@ export class SmvData implements ISmvData {
     this.slices = smvData.slices;
     this.surfaces = smvData.surfaces;
   }
+
+  /**
+   * Given the name of a csv file (e.g., "hrr", "mass", "devc") return the
+   * definition of that csv file.
+   */
   public getCsvEntry(type: string): CsvEntry | undefined {
     for (const csvEntry of this.csv_files) {
       if (csvEntry.type === type) return csvEntry;
     }
   }
+
+  /**
+   * Return the realised HRR over time of a simulation as a {@link DataVector}.
+   */
   public async getHrr(): Promise<DataVector | undefined> {
     // First see if we have a hrr csv file
     const csvEntry = this.getCsvEntry("hrr");
