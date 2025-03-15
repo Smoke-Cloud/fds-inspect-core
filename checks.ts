@@ -29,7 +29,9 @@ function failure(
   return { type: "failure", message };
 }
 
-/// Do any of the meshes overlap.
+/**
+ * Do any of the meshes overlap?
+ */
 export const meshesOverlapTest: Test = {
   id: "input.meshes.overlap",
   stages: "in",
@@ -74,6 +76,9 @@ export const meshesOverlapTest: Test = {
   },
 };
 
+/**
+ * Do the supply flows into the building have ambient temperatures specfied?
+ */
 export const flowTempTest: Test = {
   id: "input.flows.parameters.temperature",
   stages: "in",
@@ -113,6 +118,9 @@ export const flowTempTest: Test = {
   },
 };
 
+/**
+ * Is the soot yield specified as one of the known values?
+ */
 export const sootYieldTest: Test = {
   id: "input.reac.sootYield",
   stages: "in",
@@ -148,6 +156,9 @@ export const sootYieldTest: Test = {
   },
 };
 
+/**
+ * Is the CO yield specifies as one of the known values?
+ */
 export const coYieldTest: Test = {
   id: "input.reac.coYield",
   stages: "in",
@@ -183,6 +194,9 @@ export const coYieldTest: Test = {
   },
 };
 
+/**
+ * Is the chemical formula of the fuel correctly specified?
+ */
 export const formulaTest: Test = {
   id: "input.reac.formula",
   stages: "in",
@@ -252,6 +266,9 @@ export const formulaTest: Test = {
   },
 };
 
+/**
+ * Is the visibility factor correctly specified?
+ */
 export const visibilityFactorTest: Test = {
   id: "input.reac.visibilityFactor",
   stages: "in",
@@ -282,6 +299,9 @@ export const visibilityFactorTest: Test = {
   },
 };
 
+/**
+ * Is the maximum visibility correctly specified?
+ */
 export const maximumVisibilityTest: Test = {
   id: "input.reac.maximumVisibility",
   stages: "in",
@@ -314,6 +334,9 @@ export const maximumVisibilityTest: Test = {
   },
 };
 
+/**
+ * Is the NFRAMES parameter correctly specified?
+ */
 export const nFramesTest: Test = {
   id: "input.dump.nFrames",
   stages: "in",
@@ -350,6 +373,10 @@ export const nFramesTest: Test = {
   },
 };
 
+/**
+ * Do all supplies and extracts have flow measuring devices applied to them and
+ * are those measurement devices correct?
+ */
 export const flowCoverageTest: Test = {
   id: "input.measure.flow",
   stages: "in",
@@ -388,6 +415,10 @@ export const flowCoverageTest: Test = {
   },
 };
 
+/**
+ * Are there any devices stuck inside solid obstructions where they would be
+ * ineffective?
+ */
 export const deviceInSolidTest: Test = {
   id: "input.measure.device.inSolid",
   stages: "in",
@@ -414,6 +445,9 @@ export const deviceInSolidTest: Test = {
   },
 };
 
+/**
+ * Are sprinklers directly beneath a ceiling (or some other obstruction)?
+ */
 export const spkDetCeilingTest: Test = {
   id: "input.measure.device.underCeiling",
   stages: "in",
@@ -445,7 +479,9 @@ export const spkDetCeilingTest: Test = {
   },
 };
 
-/// Check that a default material has been specified.
+/**
+ * Check that a default material has been specified.
+ */
 export const nonInertMaterialsTest: Test = {
   id: "input.obsts.nonInertMaterials",
   stages: "in",
@@ -472,8 +508,10 @@ export const nonInertMaterialsTest: Test = {
   },
 };
 
-/// Test the growth rate of a burner and check that it either matches a standard
-/// growth rate, or a steady-state value within 30 s.
+/**
+ * Test the growth rate of a burner and check that it either matches a standard
+ * growth rate, or a steady-state value within 30 s.
+ */
 export const growthRateTest: Test = {
   id: "input.burner.growthRate",
   stages: "in",
@@ -521,6 +559,9 @@ export const growthRateTest: Test = {
   },
 };
 
+/**
+ * Check that there is at least one burner.
+ */
 export const burnerExistenceTest: Test = {
   id: "input.burner.exists",
   stages: "in",
@@ -536,6 +577,9 @@ export const burnerExistenceTest: Test = {
   },
 };
 
+/**
+ * Check that the CHIDs of the input and output match.
+ */
 export const matchingChids: Test = {
   id: "matching.chid",
   stages: "inout",
@@ -553,6 +597,9 @@ export const matchingChids: Test = {
   },
 };
 
+/**
+ * Check that the specified HRR was realised.
+ */
 export const hrrRealised: Test = {
   id: "matching.hrr",
   stages: "inout",
@@ -608,7 +655,9 @@ export const hrrRealised: Test = {
   },
 };
 
-/// Are we outputting plot3d?
+/**
+ * Check that PLOT3D is specified.
+ */
 export const plot3dTest: Test = {
   id: "input.output.plot3d",
   stages: "in",
