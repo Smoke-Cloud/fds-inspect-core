@@ -1,7 +1,7 @@
 import type { Xyz } from "./fds.ts";
 import type { IjkBounds, XbMinMax } from "./fds.ts";
-import * as csv from "jsr:@std/csv@0.224.3";
-import * as path from "jsr:@std/path@0.225.2";
+import * as csv from "jsr:@std/csv@1.0.5";
+import * as path from "jsr:@std/path@1.0.8";
 
 export interface CsvEntry {
   index: number;
