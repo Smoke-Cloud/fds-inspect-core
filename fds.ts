@@ -783,6 +783,14 @@ function cappedCurve(alpha: number, capTime: number, t: number): number {
   }
 }
 
+export function calcHrrAlpha(alpha: number, t: number): number {
+  if (t <= 0) {
+    return 0;
+  } else {
+    return alpha * t ** 2;
+  }
+}
+
 /** Given a HRR specification, generate a {@link DataVector} with that HRR. */
 export function generateHrr(
   hrrSpec: HrrSpecSimple,
