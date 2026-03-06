@@ -41,6 +41,7 @@ import {
 import type { FdsData } from "./fds.ts";
 import type { SmvData } from "./smv.ts";
 export * as fds from "./fds.ts";
+export * as fdsJson from "./fdsJson.ts";
 export * as smv from "./smv.ts";
 export * as summary from "./summary.ts";
 export type { FdsData } from "./fds.ts";
