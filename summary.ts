@@ -1,13 +1,5 @@
-import type {
-  Burner,
-  FdsData,
-  IjkBounds,
-  Mesh,
-  Obst,
-  Resolution,
-  Vent,
-  Xb,
-} from "./fds.ts";
+import type { Burner, FdsData, Mesh, Obst, Vent } from "./fds.ts";
+import type { Resolution, IjkBounds, Xb } from "./fdsJson.ts";
 
 /** A summary of key information about an FDS input file. */
 export interface InputSummary {
@@ -81,28 +73,27 @@ function heat_of_combustion(fdsData: FdsData): number {
 
   // 'v_' represents molar fraction
   const w_S = soot_h_fraction * w_h + (1.0 - soot_h_fraction) * w_c;
-  const v_s = w_F / w_S * y_s;
-  const v_co = w_F / w_co * y_co;
+  const v_s = (w_F / w_S) * y_s;
+  const v_co = (w_F / w_co) * y_co;
   const v_co2 = x - v_co - (1.0 - soot_h_fraction) * v_s;
-  const v_h2o = y / 2.0 - soot_h_fraction / 2.0 * v_s;
+  const v_h2o = y / 2.0 - (soot_h_fraction / 2.0) * v_s;
   const v_o2 = v_co2 + v_co / 2.0 + v_h2o / 2.0 - z / 2.0;
   // const v_n2 = v / 2.0;
-  return v_o2 * w_o2 * epumo2 / (v_F * w_F);
+  return (v_o2 * w_o2 * epumo2) / (v_F * w_F);
 }
 function soot_production_rate(fdsData: FdsData): number {
   const reac = fdsData.reacs[0];
   const y_s = reac.soot_yield ?? 0.0;
   const hoc = heat_of_combustion(fdsData);
   const hrr = total_max_hrr(fdsData);
-  return y_s / hoc * hrr;
+  return (y_s / hoc) * hrr;
 }
 
 function total_max_hrr(fdsData: FdsData): number {
   const burners: Burner[] = fdsData.burners;
-  return burners.map((burner) => burner.maxHrr).reduce(
-    (accumulator, currentValue) => accumulator + currentValue,
-    0,
-  );
+  return burners
+    .map((burner) => burner.maxHrr)
+    .reduce((accumulator, currentValue) => accumulator + currentValue, 0);
 }
 
 /** Create an InputSummay from an FdsData.
@@ -137,8 +128,8 @@ export function summarise_input(fdsData: FdsData): InputSummary {
   // smoke_detector_obscurations.dedup();
   sprinkler_activation_temperatures.sort();
 
-  const smoke_detectors = fdsData.devices.filter((devc) =>
-    devc.isSmokeDetector
+  const smoke_detectors = fdsData.devices.filter(
+    (devc) => devc.isSmokeDetector,
   );
   const n_smoke_detectors = smoke_detectors.length;
   const smoke_detector_obscurations: number[] = [];
@@ -181,7 +172,7 @@ export function summarise_input(fdsData: FdsData): InputSummary {
  */
 export function countCells(fdsData: FdsData): number {
   return fdsData.meshes.reduce(
-    (accumulator, mesh) => accumulator + (mesh.ijk.i * mesh.ijk.j * mesh.ijk.k),
+    (accumulator, mesh) => accumulator + mesh.ijk.i * mesh.ijk.j * mesh.ijk.k,
     0,
   );
 }
@@ -222,8 +213,7 @@ function obstFlatAxis(
     case "y":
       return value.bounds.j_min === value.bounds.j_max;
     case "z":
-      return value.bounds.k_min ===
-        value.bounds.k_max;
+      return value.bounds.k_min === value.bounds.k_max;
   }
 }
 
@@ -234,8 +224,12 @@ export function dimensionsOverlapXY(
   a: { x_min: number; x_max: number; y_min: number; y_max: number },
   b: { x_min: number; x_max: number; y_min: number; y_max: number },
 ): boolean {
-  return (a.x_max > b.x_min && a.x_min < b.x_max) &&
-    (a.y_max > b.y_min && a.y_min < b.y_max);
+  return (
+    a.x_max > b.x_min &&
+    a.x_min < b.x_max &&
+    a.y_max > b.y_min &&
+    a.y_min < b.y_max
+  );
 }
 
 /**
@@ -292,7 +286,7 @@ export function extents(
   }
   const areasRep: { start: number; end: number; area: number }[] = [];
   let currentArea = 0;
-  for (let i = 0; i < (newElems.length - 1); i++) {
+  for (let i = 0; i < newElems.length - 1; i++) {
     currentArea += newElems[i].area;
     areasRep.push({
       start: newElems[i].value,
@@ -352,10 +346,10 @@ function _dimensionExtent(
     // Check that mesh overlaps
     if (
       !(
-        (mesh.dimensions.x1 <= coord[0] &&
-          mesh.dimensions.x2 >= coord[0]) &&
-        (mesh.dimensions.y1 <= coord[1] &&
-          mesh.dimensions.y2 >= coord[1])
+        mesh.dimensions.x1 <= coord[0] &&
+        mesh.dimensions.x2 >= coord[0] &&
+        mesh.dimensions.y1 <= coord[1] &&
+        mesh.dimensions.y2 >= coord[1]
       )
     ) {
       continue;
@@ -371,10 +365,10 @@ function _dimensionExtent(
     const overlappingObsts: Obst[] = [];
     for (const obst of mesh.obsts ?? []) {
       if (
-        (obst.dimensions.x1 <= coord[0] &&
-          obst.dimensions.x2 >= coord[0]) &&
-        (obst.dimensions.y1 <= coord[1] &&
-          obst.dimensions.y2 >= coord[1])
+        obst.dimensions.x1 <= coord[0] &&
+        obst.dimensions.x2 >= coord[0] &&
+        obst.dimensions.y1 <= coord[1] &&
+        obst.dimensions.y2 >= coord[1]
       ) {
         overlappingObsts.push(obst);
       }
@@ -407,14 +401,12 @@ function clearHeights(
   // TODO: this is incorrect
   const vals = [];
   const base = {
-    area: (regionExtents.mesh.dimensions.x2 -
-      regionExtents.mesh.dimensions.x1) *
-      (regionExtents.mesh.dimensions.y2 -
-        regionExtents.mesh.dimensions.y1),
+    area:
+      (regionExtents.mesh.dimensions.x2 - regionExtents.mesh.dimensions.x1) *
+      (regionExtents.mesh.dimensions.y2 - regionExtents.mesh.dimensions.y1),
     height: regionExtents.extents.reduce(
       (acc, succs) =>
-        acc +
-        succs.reduce((ac, succ) => ac + (succ.end - succ.start), 0),
+        acc + succs.reduce((ac, succ) => ac + (succ.end - succ.start), 0),
       0,
     ),
   };
@@ -465,21 +457,30 @@ function meshArea(axis: "x" | "y" | "z", mesh: Mesh): number {
 }
 
 function meshAreaX(mesh: Mesh): number {
-  return (mesh.dimensions.z2 - mesh.dimensions.z1) *
-    (mesh.dimensions.y2 - mesh.dimensions.y1);
+  return (
+    (mesh.dimensions.z2 - mesh.dimensions.z1) *
+    (mesh.dimensions.y2 - mesh.dimensions.y1)
+  );
 }
 
 function meshAreaY(mesh: Mesh): number {
-  return (mesh.dimensions.x2 - mesh.dimensions.x1) *
-    (mesh.dimensions.z2 - mesh.dimensions.z1);
+  return (
+    (mesh.dimensions.x2 - mesh.dimensions.x1) *
+    (mesh.dimensions.z2 - mesh.dimensions.z1)
+  );
 }
 
 function meshAreaZ(mesh: Mesh): number {
-  return (mesh.dimensions.x2 - mesh.dimensions.x1) *
-    (mesh.dimensions.y2 - mesh.dimensions.y1);
+  return (
+    (mesh.dimensions.x2 - mesh.dimensions.x1) *
+    (mesh.dimensions.y2 - mesh.dimensions.y1)
+  );
 }
 
-function greatestExtent(axis: "x" | "y" | "z", fdsFile: FdsData): {
+function greatestExtent(
+  axis: "x" | "y" | "z",
+  fdsFile: FdsData,
+): {
   start: number;
   end: number;
   area: number;
@@ -569,10 +570,7 @@ export class CellMap {
   }
 }
 
-function getRegionExtents(
-  fdsFile: FdsData,
-  val: number,
-): CellMap[] {
+function getRegionExtents(fdsFile: FdsData, val: number): CellMap[] {
   const regionExtents: CellMap[] = [];
   for (const mesh of fdsFile.meshes) {
     if (mesh.dimensions.z1 <= val && mesh.dimensions.z2 >= val) {
@@ -581,11 +579,7 @@ function getRegionExtents(
         if (obstFlat(["x", "y"], obst)) continue;
         // iterate through ijk
         for (let i = obst.bounds.i_min; i < obst.bounds.i_max; i++) {
-          for (
-            let j = obst.bounds.j_min;
-            j < obst.bounds.j_max;
-            j++
-          ) {
+          for (let j = obst.bounds.j_min; j < obst.bounds.j_max; j++) {
             cellMap.addExtent(i, j, {
               start: obst.bounds.k_min,
               end: obst.bounds.k_max,

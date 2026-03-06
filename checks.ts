@@ -5,27 +5,20 @@ import {
   findMatchingGrowthRate,
   generateHrrRelDiff,
   intersect,
-  type IVent,
-  type Reac,
   type Vent,
 } from "./fds.ts";
+import type { Reac, IVent } from "./fdsJson.ts";
 import type { SmvData, Test, VerificationResult } from "./mod.ts";
 
-function success(
-  message: string,
-): VerificationResult {
+function success(message: string): VerificationResult {
   return { type: "success", message };
 }
 
-function warning(
-  message: string,
-): VerificationResult {
+function warning(message: string): VerificationResult {
   return { type: "warning", message };
 }
 
-function failure(
-  message: string,
-): VerificationResult {
+function failure(message: string): VerificationResult {
   return { type: "failure", message };
 }
 
@@ -39,8 +32,8 @@ export const meshesOverlapTest: Test = {
     // Clone a list of meshes.
     const intersections = [];
     // console.log(fdsData.meshes.map(mesh=>mesh.dimensions))
-    for (const meshA of (fdsData.meshes ?? [])) {
-      for (const meshB of (fdsData.meshes ?? [])) {
+    for (const meshA of fdsData.meshes ?? []) {
+      for (const meshB of fdsData.meshes ?? []) {
         if (meshA.index === meshB.index) continue;
         if (intersect(meshA.dimensions, meshB.dimensions)) {
           console.log(
@@ -59,16 +52,12 @@ export const meshesOverlapTest: Test = {
       }
     }
     if (intersections.length === 0) {
-      return [
-        success("No Intersections"),
-      ];
+      return [success("No Intersections")];
     } else {
       const res = [];
       for (const [meshA, meshB] of intersections) {
         res.push(
-          failure(
-            `Mesh \`${meshA.id}\` intersects with \`${meshB.id}\``,
-          ),
+          failure(`Mesh \`${meshA.id}\` intersects with \`${meshB.id}\``),
         );
       }
       return res;
@@ -87,7 +76,7 @@ export const flowTempTest: Test = {
     const testResults = [];
     // List of surfaces that should have an ambient temperature.
     const flowSurfaces: Set<string> = new Set();
-    for (const mesh of (fdsData.meshes ?? [])) {
+    for (const mesh of fdsData.meshes ?? []) {
       for (const vent of mesh.vents ?? []) {
         if (!vent.surface) continue;
         // const surface = vent.surface
@@ -101,17 +90,23 @@ export const flowTempTest: Test = {
       if (!surface) continue;
       if (!surface.hasFlow) continue;
       if (surface.tmp_front == undefined) {
-        testResults.push(success(
-          `Flow Temp for Surface \`${surface.id}\` leaves TMP_FRONT as default`,
-        ));
+        testResults.push(
+          success(
+            `Flow Temp for Surface \`${surface.id}\` leaves TMP_FRONT as default`,
+          ),
+        );
       } else if (surface.tmp_front == 293.15) {
-        testResults.push(success(
-          `Flow Temp for Surface \`${surface.id}\` leaves TMP_FRONT as default`,
-        ));
+        testResults.push(
+          success(
+            `Flow Temp for Surface \`${surface.id}\` leaves TMP_FRONT as default`,
+          ),
+        );
       } else {
-        testResults.push(failure(
-          `Flow Temp for Surface \`${surface.id}\` sets TMP_FRONT to \`${surface.tmp_front}\`, which is not an expected value`,
-        ));
+        testResults.push(
+          failure(
+            `Flow Temp for Surface \`${surface.id}\` sets TMP_FRONT to \`${surface.tmp_front}\`, which is not an expected value`,
+          ),
+        );
       }
     }
     return testResults;
@@ -124,9 +119,7 @@ export const flowTempTest: Test = {
 export const sootYieldTest: Test = {
   id: "input.reac.sootYield",
   stages: "in",
-  func: async function (
-    fdsData: FdsData,
-  ): Promise<VerificationResult[]> {
+  func: async function (fdsData: FdsData): Promise<VerificationResult[]> {
     const results = [];
     for (const reac of fdsData.reacs ?? []) {
       const propName = "Soot Yield";
@@ -135,9 +128,7 @@ export const sootYieldTest: Test = {
       if (value) {
         if (possibleValues.has(value)) {
           results.push(
-            success(
-              `${propName} was ${value}, a recognised value.`,
-            ),
+            success(`${propName} was ${value}, a recognised value.`),
           );
         } else {
           results.push(
@@ -147,9 +138,7 @@ export const sootYieldTest: Test = {
           );
         }
       } else {
-        results.push(
-          failure(`${propName} was not specified.`),
-        );
+        results.push(failure(`${propName} was not specified.`));
       }
     }
     return results;
@@ -162,9 +151,7 @@ export const sootYieldTest: Test = {
 export const coYieldTest: Test = {
   id: "input.reac.coYield",
   stages: "in",
-  func: async function (
-    fdsData: FdsData,
-  ): Promise<VerificationResult[]> {
+  func: async function (fdsData: FdsData): Promise<VerificationResult[]> {
     const results = [];
     for (const reac of fdsData.reacs ?? []) {
       const propName = "CO Yield";
@@ -173,9 +160,7 @@ export const coYieldTest: Test = {
       if (value) {
         if (possibleValues.has(value)) {
           results.push(
-            success(
-              `${propName} was ${value}, a recognised value.`,
-            ),
+            success(`${propName} was ${value}, a recognised value.`),
           );
         } else {
           results.push(
@@ -185,9 +170,7 @@ export const coYieldTest: Test = {
           );
         }
       } else {
-        results.push(
-          failure("{propName} was not specified."),
-        );
+        results.push(failure("{propName} was not specified."));
       }
     }
     return results;
@@ -222,16 +205,12 @@ export const formulaTest: Test = {
       const value = f(reac);
       if (value) {
         if (possibleValues.has(value)) {
-          return success(
-            `${propName} was ${value}, a recognised value.`,
-          );
+          return success(`${propName} was ${value}, a recognised value.`);
         } else {
           return failure(
-            `${propName} was ${value}, which is not one of the usual values of ${
-              Array.from(possibleValues.values()).join(
-                ",",
-              )
-            }.`,
+            `${propName} was ${value}, which is not one of the usual values of ${Array.from(
+              possibleValues.values(),
+            ).join(",")}.`,
           );
         }
       } else {
@@ -246,19 +225,13 @@ export const formulaTest: Test = {
     ];
     const test_results: VerificationResult[] = [];
     if (!fdsData.reacs[0]) {
-      test_results.push(
-        failure("No REAC has been specified"),
-      );
+      test_results.push(failure("No REAC has been specified"));
     } else if (fdsData.reacs.length > 1) {
-      test_results.push(
-        failure("No REAC has been specified"),
-      );
+      test_results.push(failure("No REAC has been specified"));
     } else {
-      for (
-        const test_result of tests.map((test) =>
-          test(fdsData, fdsData.reacs[0])
-        )
-      ) {
+      for (const test_result of tests.map((test) =>
+        test(fdsData, fdsData.reacs[0]),
+      )) {
         test_results.push(test_result);
       }
     }
@@ -276,18 +249,14 @@ export const visibilityFactorTest: Test = {
     const vis = fdsData.visibility_factor;
     let visibility_factor;
     if (!vis) {
-      return [
-        failure("Visibility Factor Not Set"),
-      ];
+      return [failure("Visibility Factor Not Set")];
     } else {
       visibility_factor = vis;
     }
 
     if (visibility_factor === 3.0 || visibility_factor === 8.0) {
       return [
-        success(
-          `Visibility Factor is ${visibility_factor}, a known value.`,
-        ),
+        success(`Visibility Factor is ${visibility_factor}, a known value.`),
       ];
     } else {
       return [
@@ -306,14 +275,13 @@ export const maximumVisibilityTest: Test = {
   id: "input.reac.maximumVisibility",
   stages: "in",
   func: async function (fdsData: FdsData): Promise<VerificationResult[]> {
-    const vis = fdsData.ec_ll && fdsData.visibility_factor
-      ? fdsData.visibility_factor / fdsData.ec_ll
-      : undefined;
+    const vis =
+      fdsData.ec_ll && fdsData.visibility_factor
+        ? fdsData.visibility_factor / fdsData.ec_ll
+        : undefined;
     let maximum_visibility;
     if (!vis) {
-      return [
-        failure("Maximum Visibility Not Set"),
-      ];
+      return [failure("Maximum Visibility Not Set")];
     } else {
       maximum_visibility = vis;
     }
@@ -360,15 +328,11 @@ export const nFramesTest: Test = {
         ];
       } else {
         return [
-          failure(
-            `Value ${fdsData.dump.nframes} may result in clipped output`,
-          ),
+          failure(`Value ${fdsData.dump.nframes} may result in clipped output`),
         ];
       }
     } else {
-      return [
-        failure("NFRAMES not specified"),
-      ];
+      return [failure("NFRAMES not specified")];
     }
   },
 };
@@ -388,28 +352,24 @@ export const flowCoverageTest: Test = {
     // TODO: obsts
     // const obsts = getObsts(fdsData);
     // vents which may have a flow
-    const ventsWithFlows: Vent[] = fdsData.supplies.concat(
-      fdsData.extracts,
-    );
+    const ventsWithFlows: Vent[] = fdsData.supplies.concat(fdsData.extracts);
     // obsts that have surfaces with flows
     // const obstWithFlows: any[] = obsts.filter((obst) =>
     //   obstHasFlow(fdsData, obst)
     // );
     // for each of the vents, ensure there is a flow device with the same
     // dimensions find those which do not
-    const notCovered: IVent[] = ventsWithFlows
-      .filter((vent) => !fdsData.hasFlowDevc(vent));
+    const notCovered: IVent[] = ventsWithFlows.filter(
+      (vent) => !fdsData.hasFlowDevc(vent),
+    );
     if (notCovered.length === 0) {
-      return [
-        success("All Flows Vents and Obsts Measured"),
-      ];
+      return [success("All Flows Vents and Obsts Measured")];
     } else {
-      const issues: VerificationResult[] = notCovered
-        .map((vent) =>
-          failure(
-            `Vent \`${vent.id}\` has no adequate volume flow measuring device`,
-          )
-        );
+      const issues: VerificationResult[] = notCovered.map((vent) =>
+        failure(
+          `Vent \`${vent.id}\` has no adequate volume flow measuring device`,
+        ),
+      );
       return issues;
     }
   },
@@ -426,20 +386,16 @@ export const deviceInSolidTest: Test = {
   func: async function devicesTest(
     fdsData: FdsData,
   ): Promise<VerificationResult[]> {
-    const stuckDevices: Devc[] = fdsData
-      .devices
+    const stuckDevices: Devc[] = fdsData.devices
       // ND: we only perform this check for devices with a prop id (which is
       // usually detectors and the like)
       .filter((devc) => devc.stuckInSolid && devc.prop_id);
     if (stuckDevices.length === 0) {
       return [success("No stuck devices")];
     } else {
-      const issues: VerificationResult[] = stuckDevices
-        .map((devc) =>
-          failure(
-            `Devc ${devc.id} Positioned within solid obstruction`,
-          )
-        );
+      const issues: VerificationResult[] = stuckDevices.map((devc) =>
+        failure(`Devc ${devc.id} Positioned within solid obstruction`),
+      );
       return issues;
     }
   },
@@ -453,12 +409,10 @@ export const spkDetCeilingTest: Test = {
   stages: "in",
   /// Ensure that sprinklers and smoke detectors are beneath a ceiling.
   func: async function (fdsData: FdsData): Promise<VerificationResult[]> {
-    const nonBeneathCeiling: Devc[] = fdsData
-      .devices
-      .filter((devc) =>
-        devc.isSprinkler ||
-        devc.isSmokeDetector ||
-        devc.isThermalDetector
+    const nonBeneathCeiling: Devc[] = fdsData.devices
+      .filter(
+        (devc) =>
+          devc.isSprinkler || devc.isSmokeDetector || devc.isThermalDetector,
       )
       .filter((devc) => !devc.devcBeneathCeiling);
     if (nonBeneathCeiling.length === 0) {
@@ -468,12 +422,11 @@ export const spkDetCeilingTest: Test = {
         ),
       ];
     } else {
-      const issues: VerificationResult[] = nonBeneathCeiling
-        .map((devc) =>
-          failure(
-            `Devc \`${devc.id}\` is not immediately beneath solid obstruction`,
-          )
-        );
+      const issues: VerificationResult[] = nonBeneathCeiling.map((devc) =>
+        failure(
+          `Devc \`${devc.id}\` is not immediately beneath solid obstruction`,
+        ),
+      );
       return issues;
     }
   },
@@ -485,9 +438,7 @@ export const spkDetCeilingTest: Test = {
 export const nonInertMaterialsTest: Test = {
   id: "input.obsts.nonInertMaterials",
   stages: "in",
-  func: async function (
-    fdsData: FdsData,
-  ): Promise<VerificationResult[]> {
+  func: async function (fdsData: FdsData): Promise<VerificationResult[]> {
     // For each obst check that none of the surfaces are INERT
     let nInerts = 0;
     for (const mesh of fdsData.meshes) {
@@ -497,13 +448,15 @@ export const nonInertMaterialsTest: Test = {
       }
     }
     if (nInerts > 0) {
-      return [failure(
-        `There are ${nInerts} non-burner OBSTs with an \`INERT\` surface type`,
-      )];
+      return [
+        failure(
+          `There are ${nInerts} non-burner OBSTs with an \`INERT\` surface type`,
+        ),
+      ];
     } else {
-      return [success(
-        `There are no non-burner OBSTs with an \`INERT\` surface type`,
-      )];
+      return [
+        success(`There are no non-burner OBSTs with an \`INERT\` surface type`),
+      ];
     }
   },
 };
@@ -515,22 +468,17 @@ export const nonInertMaterialsTest: Test = {
 export const growthRateTest: Test = {
   id: "input.burner.growthRate",
   stages: "in",
-  func: async function (
-    fdsData: FdsData,
-  ): Promise<VerificationResult[]> {
+  func: async function (fdsData: FdsData): Promise<VerificationResult[]> {
     const hrrSpec = fdsData.hrrSpec;
     if (!hrrSpec) return [];
     if (hrrSpec.type === "composite") {
-      return [failure(
-        `Growth rate is composite`,
-      )];
+      return [failure(`Growth rate is composite`)];
     }
     const results: VerificationResult[] = [];
     const matchingGrowthRate = findMatchingGrowthRate(hrrSpec);
-    const info =
-      `TAU_Q = ${hrrSpec.tau_q} s, (${matchingGrowthRate}), MaxHRR = ${
-        hrrSpec.peak / 1000
-      } kW`;
+    const info = `TAU_Q = ${hrrSpec.tau_q} s, (${matchingGrowthRate}), MaxHRR = ${
+      hrrSpec.peak / 1000
+    } kW`;
     if (hrrSpec.tau_q == undefined) {
       results.push(
         warning(
@@ -539,20 +487,12 @@ export const growthRateTest: Test = {
       );
     } else if (hrrSpec.tau_q === -30) {
       // TODO: add floating point bounds
-      results.push(
-        success(`Growth rate is 30 s (as used for steady-state)`),
-      );
+      results.push(success(`Growth rate is 30 s (as used for steady-state)`));
     } else if (matchingGrowthRate) {
-      results.push(
-        success(
-          `Alpha matches standard value: ${info}`,
-        ),
-      );
+      results.push(success(`Alpha matches standard value: ${info}`));
     } else {
       results.push(
-        failure(
-          `Alpha value deviates from standard values: ${info}`,
-        ),
+        failure(`Alpha value deviates from standard values: ${info}`),
       );
     }
     return results;
@@ -565,9 +505,7 @@ export const growthRateTest: Test = {
 export const burnerExistenceTest: Test = {
   id: "input.burner.exists",
   stages: "in",
-  func: async function (
-    fdsData: FdsData,
-  ): Promise<VerificationResult[]> {
+  func: async function (fdsData: FdsData): Promise<VerificationResult[]> {
     const n_burners = fdsData.burners.length;
     if (n_burners > 0) {
       return [success(`${n_burners} burners were found`)];
@@ -590,9 +528,7 @@ export const matchingChids: Test = {
     if (fdsData.chid === smvData.chid) {
       return [success(`CHIDs match, ${fdsData.chid} = ${smvData.chid}`)];
     } else {
-      return [
-        failure(`CHIDs don't match, ${fdsData.chid} ≠ ${smvData.chid}`),
-      ];
+      return [failure(`CHIDs don't match, ${fdsData.chid} ≠ ${smvData.chid}`)];
     }
   },
 };
@@ -640,15 +576,13 @@ export const hrrRealised: Test = {
     if (maxPeriod >= 10) {
       return [
         failure(
-          `HRR exceeds 10% bounds for greater than 10 s (${
-            totalTime.toFixed(2)
-          } s in total for a maximum of ${maxPeriod.toFixed(2)})`,
+          `HRR exceeds 10% bounds for greater than 10 s (${totalTime.toFixed(
+            2,
+          )} s in total for a maximum of ${maxPeriod.toFixed(2)})`,
         ),
       ];
     } else if (occurs) {
-      return [
-        warning(`HRR exceeds 10% bounds, albeit only momentarily`),
-      ];
+      return [warning(`HRR exceeds 10% bounds, albeit only momentarily`)];
     } else {
       return [success(`HRR matches specification within 10% bounds`)];
     }
@@ -668,7 +602,7 @@ export const plot3dTest: Test = {
     const hasPlot3d = Boolean(plot3dQuantities.find((s) => s.length > 0));
     // Check that the dump frequency is enough to actually output some results
     const plot3dFrequency =
-      fdsData.dump.dt_pl3d < (fdsData.time.end - fdsData.time.begin);
+      fdsData.dump.dt_pl3d < fdsData.time.end - fdsData.time.begin;
     if (hasPlot3d && plot3dFrequency) {
       return [
         success(
@@ -676,15 +610,15 @@ export const plot3dTest: Test = {
         ),
       ];
     } else if (!plot3dFrequency) {
-      return [failure(
-        `Plot3d dumps every ${fdsData.dump.dt_pl3d} s, but the simulation is only ${
-          fdsData.time.end - fdsData.time.begin
-        } s long. No data will be outputted.`,
-      )];
+      return [
+        failure(
+          `Plot3d dumps every ${fdsData.dump.dt_pl3d} s, but the simulation is only ${
+            fdsData.time.end - fdsData.time.begin
+          } s long. No data will be outputted.`,
+        ),
+      ];
     } else {
-      return [failure(
-        `Has no plot3d`,
-      )];
+      return [failure(`Has no plot3d`)];
     }
   },
 };

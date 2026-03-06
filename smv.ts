@@ -1,7 +1,6 @@
-import type { Xyz } from "./fds.ts";
-import type { IjkBounds, XbMinMax } from "./fds.ts";
 import * as csv from "jsr:@std/csv@1.0.5";
 import * as path from "jsr:@std/path@1.0.8";
+import type { IjkBounds, XbMinMax, Xyz } from "./fdsJson.ts";
 
 export interface CsvEntry {
   index: number;
@@ -39,7 +38,10 @@ export class SmvData implements ISmvData {
     coordinates: IjkBounds;
   }[];
   public surfaces: [{ index: number; id: string }];
-  constructor(public baseDir: string, smvData: ISmvData) {
+  constructor(
+    public baseDir: string,
+    smvData: ISmvData,
+  ) {
     this.version = smvData.version;
     this.chid = smvData.chid;
     this.input_file = smvData.input_file;

@@ -1,57 +1,33 @@
+import type {
+  DevcPoint,
+  FdsFile,
+  Hvac,
+  IDevc,
+  IjkBounds,
+  ILayerMaterial,
+  IMaterial,
+  IMesh,
+  IObst,
+  IProp,
+  ISurf,
+  ISurfLayer,
+  IVent,
+  Part,
+  Reac,
+  Resolution,
+  Xb,
+  Xyz,
+} from "./fdsJson.ts";
 import type { DataVector } from "./smv.ts";
 
-/** Real 3d location */
-export interface Xyz {
-  x: number;
-  y: number;
-  z: number;
+export class FdsDataObject {
+  public fdsData: FdsData;
+  constructor(fdsData: FdsData) {
+    this.fdsData = fdsData;
+  }
 }
 
-/** Real 3d rectilinear bounds */
-export interface Xb {
-  x1: number;
-  x2: number;
-  y1: number;
-  y2: number;
-  z1: number;
-  z2: number;
-}
-
-export interface XbMinMax {
-  x_min: number;
-  x_max: number;
-  y_min: number;
-  y_max: number;
-  z_min: number;
-  z_max: number;
-}
-
-/** Integer 3d rectilinear bounds */
-export interface IjkBounds {
-  i_min: number;
-  i_max: number;
-  j_min: number;
-  j_max: number;
-  k_min: number;
-  k_max: number;
-}
-
-/** Mesh information */
-export interface IMesh {
-  index: number;
-  id: string;
-  ijk: {
-    i: number;
-    j: number;
-    k: number;
-  };
-  dimensions: Xb;
-  cell_sizes: Resolution;
-  vents: IVent[];
-  obsts: IObst[];
-}
-
-export class Mesh implements IMesh {
+export class Mesh extends FdsDataObject {
   public index: number;
   public id: string;
   public ijk: { i: number; j: number; k: number };
@@ -59,7 +35,8 @@ export class Mesh implements IMesh {
   public cell_sizes: Resolution;
   public vents: Vent[];
   public obsts: Obst[];
-  constructor(public fdsData: FdsData, mesh: IMesh) {
+  constructor(fdsData: FdsData, mesh: IMesh) {
+    super(fdsData);
     this.index = mesh.index;
     this.id = mesh.id;
     this.ijk = mesh.ijk;
@@ -74,88 +51,7 @@ export class Mesh implements IMesh {
   }
 }
 
-/** Reaction information */
-export interface Reac {
-  // a: number;
-  // auto_ignition_temperature: number;
-  c: number;
-  // check_atom_balance: boolean;
-  co_yield: number;
-  // critical_flame_temperature: number;
-  // e: number;
-  epumo2: number;
-  // k: number;
-  // equation: string;
-  // fixed_mix_time: number;
-  // formula: string;
-  // fuel: string;
-  // fuel_radcal_id: string;
-  // fyi: string;
-  h: number;
-  // hcn_yield: number;
-  // hoc_complete: number;
-  heat_of_combustion: number;
-  // id: string;
-  // ideal: boolean;
-  // lower_oxygen_limit: number;
-  n: number;
-  // nu: number[];
-  // n_s: number[];
-  // n_t: number;
-  o: number;
-  // priority: number;
-  // radiative_fraction: number;
-  // ramp_chi_r: string;
-  // reac_atom_error: number;
-  // reac_mass_error: number;
-  // reverse: boolean;
-  soot_h_fraction?: number;
-  soot_yield: number;
-  // spec_id_n_s: string[];
-  // spec_id_nu: string[];
-  // third_body: boolean;
-}
-
-// export interface Resolution {
-//   dx_min: number;
-//   dx_max: number;
-//   dy_min: number;
-//   dy_max: number;
-//   dz_min: number;
-//   dz_max: number;
-// }
-
-/** Mesh resolution */
-export interface Resolution {
-  dx: number;
-  dy: number;
-  dz: number;
-}
-
-/** Device information */
-export interface IDevc {
-  index: number;
-  id: string;
-  label: string;
-  spatial_statistic: string;
-  spec_id: string;
-  prop_id: string;
-  mesh: number;
-  setpoint: number;
-  dimensions: {
-    x1: number;
-    x2: number;
-    y1: number;
-    y2: number;
-    z1: number;
-    z2: number;
-  };
-  location: Xyz;
-  quantities: string[];
-  points: DevcPoint[];
-}
-
-export class Devc implements IDevc {
+export class Devc extends FdsDataObject {
   public index: number;
   public id: string;
   public label: string;
@@ -175,7 +71,8 @@ export class Devc implements IDevc {
   public location: Xyz;
   public quantities: string[];
   public points: DevcPoint[];
-  constructor(public fdsData: FdsData, devc: IDevc) {
+  constructor(fdsData: FdsData, devc: IDevc) {
+    super(fdsData);
     this.index = devc.index;
     this.id = devc.id;
     this.label = devc.label;
@@ -228,9 +125,11 @@ export class Devc implements IDevc {
   public get isFlowDevice(): boolean {
     const firstQuantity = this.quantities[0];
     if (!firstQuantity) return false;
-    return firstQuantity === "VOLUME FLOW" ||
+    return (
+      firstQuantity === "VOLUME FLOW" ||
       (firstQuantity === "NORMAL VELOCITY" &&
-        this.spatial_statistic === "SURFACE INTEGRAL");
+        this.spatial_statistic === "SURFACE INTEGRAL")
+    );
   }
 
   /**
@@ -240,8 +139,8 @@ export class Devc implements IDevc {
   // TODO: This is more complicated as it may not be a solid cell, but a solid
   // surface. This is exacerbated by being on a mesh boundary.
   public get devcBeneathCeiling(): boolean {
-    return this.points.every((point: DevcPoint) =>
-      point.init_solid_zplus !== false
+    return this.points.every(
+      (point: DevcPoint) => point.init_solid_zplus !== false,
     );
   }
 
@@ -256,29 +155,7 @@ export class Devc implements IDevc {
   }
 }
 
-/** A point location for a device with some additional properties of the
- * surrounding cells. */
-export interface DevcPoint {
-  i: number;
-  j: number;
-  k: number;
-  init_solid: boolean;
-  init_solid_zplus?: boolean;
-}
-
-/** Surface information */
-export interface ISurf {
-  index: number;
-  id: string;
-  hrrpua: number;
-  tmp_front?: number;
-  tau_q: number;
-  mlrpua: number;
-  vel: number;
-  volume_flow: number;
-}
-
-export class Surf implements ISurf {
+export class Surf extends FdsDataObject {
   public index: number;
   public id: string;
   public hrrpua: number;
@@ -287,7 +164,9 @@ export class Surf implements ISurf {
   public mlrpua: number;
   public vel: number;
   public volume_flow: number;
-  constructor(public fdsData: FdsData, surf: ISurf) {
+  public layers: SurfLayer[];
+  constructor(fdsData: FdsData, surf: ISurf) {
+    super(fdsData);
     this.index = surf.index;
     this.id = surf.id;
     this.hrrpua = surf.hrrpua;
@@ -296,6 +175,7 @@ export class Surf implements ISurf {
     this.mlrpua = surf.mlrpua;
     this.vel = surf.vel;
     this.volume_flow = surf.volume_flow;
+    this.layers = surf.layers.map((c) => new SurfLayer(fdsData, c));
   }
 
   /**
@@ -309,47 +189,68 @@ export class Surf implements ISurf {
    * Does this surface have a flow specified (e.g. via `VOLUME_FLOW` or `VEL`)?
    */
   public get hasFlow(): boolean {
-    return this.vel != null ||
-      this.volume_flow != null;
+    return this.vel != null || this.volume_flow != null;
   }
 
   /**
    * Does this surface have a flow specified which supplies gas to the domain?
    */
   public get isSupply(): boolean {
-    return this.vel < 0 ||
-      this.volume_flow < 0;
+    return this.vel < 0 || this.volume_flow < 0;
   }
 
   /**
    * Does this surface have a flow specified which extracts gas from the domain?
    */
   public get isExtract(): boolean {
-    return this.vel > 0 ||
-      this.volume_flow > 0;
+    return this.vel > 0 || this.volume_flow > 0;
   }
 }
 
-/** Hvac node information */
-export interface Hvac {
-  vent_id: string;
-  vent2_id: string;
+export class SurfLayer extends FdsDataObject {
+  public index: number;
+  public density: number;
+  public materials: LayerMaterial[];
+  constructor(fdsData: FdsData, surf: ISurfLayer) {
+    super(fdsData);
+    this.index = surf.index;
+    this.density = surf.density;
+    console.log(surf.materials);
+    this.materials = surf.materials.map((c) => new LayerMaterial(fdsData, c));
+  }
 }
 
-/** Property information */
-export interface IProp {
-  index: number;
-  id: string;
-  part_id: string;
-  spec_id: string;
-  quantity: string;
-  activation_temperature: number;
-  activation_obscuration: number;
-  flow_rate: number;
-  particle_velocity: number;
+export class LayerMaterial extends FdsDataObject {
+  public index: number;
+  public id: string;
+  public mass_fraction: number;
+  public material_index: number;
+  constructor(fdsData: FdsData, surf: ILayerMaterial) {
+    super(fdsData);
+    this.index = surf.index;
+    this.id = surf.id;
+    this.mass_fraction = surf.mass_fraction;
+    this.material_index = surf.material_index;
+  }
 }
 
-export class Prop implements IProp {
+export class Matl extends FdsDataObject {
+  public index: number;
+  public id: string;
+  public rho_s: number;
+  public emissivity: number;
+  public thermal_diffusivity: number;
+  constructor(fdsData: FdsData, surf: IMaterial) {
+    super(fdsData);
+    this.index = surf.index;
+    this.id = surf.id;
+    this.rho_s = surf.rho_s;
+    this.emissivity = surf.emissivity;
+    this.thermal_diffusivity = surf.thermal_diffusivity;
+  }
+}
+
+export class Prop extends FdsDataObject {
   public index: number;
   public id: string;
   public part_id: string;
@@ -359,7 +260,8 @@ export class Prop implements IProp {
   public activation_obscuration: number;
   public flow_rate: number;
   public particle_velocity: number;
-  constructor(public fdsData: FdsData, prop: IProp) {
+  constructor(fdsData: FdsData, prop: IProp) {
+    super(fdsData);
     this.index = prop.index;
     this.id = prop.id;
     this.part_id = prop.part_id;
@@ -387,63 +289,7 @@ export class Prop implements IProp {
   }
 }
 
-/** Particle class information */
-export interface Part {
-  index: number;
-  id: string;
-  spec_id?: string;
-  devc_id?: string;
-  ctrl_id?: string;
-  surf_id?: string;
-  prop_id?: string;
-  diameter: string;
-  monodisperse: boolean;
-  age: number;
-  sampling_factor: number;
-}
-
-/** Root FDS file object */
-export interface FdsFile {
-  chid: string;
-  ec_ll: number;
-  visibility_factor: number;
-  dump: {
-    nframes: number;
-    plot3d_quantity: string[];
-    dt_pl3d: number;
-  };
-  time: {
-    begin: number;
-    end: number;
-  };
-  surfaces: Surf[];
-  meshes: IMesh[];
-  devices: Devc[];
-  hvac: Hvac[];
-  props: IProp[];
-  parts: Part[];
-  reacs: Reac[];
-}
-
-/** Vent information */
-export interface IVent {
-  index: number;
-  id: string;
-  surface: string;
-  devc_id: string;
-  ctrl_id: string;
-  dimensions: {
-    x1: number;
-    x2: number;
-    y1: number;
-    y2: number;
-    z1: number;
-    z2: number;
-  };
-  fds_area: number;
-}
-
-export class Vent implements IVent {
+export class Vent extends FdsDataObject {
   public index: number;
   public id: string;
   public surface: string;
@@ -458,7 +304,8 @@ export class Vent implements IVent {
     z2: number;
   };
   public fds_area: number;
-  constructor(public fdsData: FdsData, vent: IVent) {
+  constructor(fdsData: FdsData, vent: IVent) {
+    super(fdsData);
     this.index = vent.index;
     this.id = vent.id;
     this.surface = vent.surface;
@@ -477,8 +324,8 @@ export class Vent implements IVent {
       surfaces.push(this.surface);
     }
     for (const surfaceName of surfaces) {
-      const surface = this.fdsData.surfaces.find((surface) =>
-        surface.id === surfaceName
+      const surface = this.fdsData.surfaces.find(
+        (surface) => surface.id === surfaceName,
       );
       if (!surface) continue;
       if (surface.isBurner) {
@@ -533,37 +380,7 @@ export class Vent implements IVent {
   }
 }
 
-/** Obstruction information */
-export interface IObst {
-  index: number;
-  id: string;
-  surfaces?: {
-    x_min: string;
-    x_max: string;
-    y_min: string;
-    y_max: string;
-    z_min: string;
-    z_max: string;
-  };
-  devc_id: string;
-  ctrl_id: string;
-  dimensions: {
-    x1: number;
-    x2: number;
-    y1: number;
-    y2: number;
-    z1: number;
-    z2: number;
-  };
-  bounds: IjkBounds;
-  fds_area: {
-    x: number;
-    y: number;
-    z: number;
-  };
-}
-
-export class Obst implements IObst {
+export class Obst extends FdsDataObject {
   public index: number;
   public id: string;
   public surfaces?: {
@@ -590,7 +407,8 @@ export class Obst implements IObst {
     y: number;
     z: number;
   };
-  constructor(public fdsData: FdsData, obst: IObst) {
+  constructor(fdsData: FdsData, obst: IObst) {
+    super(fdsData);
     this.index = obst.index;
     this.id = obst.id;
     this.surfaces = obst.surfaces;
@@ -613,8 +431,8 @@ export class Obst implements IObst {
       surfaces.push(this.surfaces.z_max);
     }
     for (const surfaceName of surfaces) {
-      const surface = this.fdsData.surfaces.find((surface) =>
-        surface.id === surfaceName
+      const surface = this.fdsData.surfaces.find(
+        (surface) => surface.id === surfaceName,
       );
       if (!surface) continue;
       if (surface.isBurner) {
@@ -636,12 +454,13 @@ export class Obst implements IObst {
   }
 }
 
-export class FdsData implements FdsFile {
+export class FdsData {
   public chid: string;
   public ec_ll: number;
   public visibility_factor: number;
   public dump: { nframes: number; plot3d_quantity: string[]; dt_pl3d: number };
   public time: { begin: number; end: number };
+  public materials: Matl[];
   public surfaces: Surf[];
   public meshes: Mesh[];
   public devices: Devc[];
@@ -655,8 +474,9 @@ export class FdsData implements FdsFile {
     this.visibility_factor = fdsFile.visibility_factor;
     this.dump = fdsFile.dump;
     this.time = fdsFile.time;
-    this.surfaces = (fdsFile.surfaces ?? []).map((surf) =>
-      new Surf(this, surf)
+    this.materials = fdsFile.materials.map((c) => new Matl(this, c));
+    this.surfaces = (fdsFile.surfaces ?? []).map(
+      (surf) => new Surf(this, surf),
     );
     this.meshes = (fdsFile.meshes ?? []).map((mesh) => new Mesh(this, mesh));
     this.devices = (fdsFile.devices ?? []).map((devc) => new Devc(this, devc));
@@ -676,19 +496,13 @@ export class FdsData implements FdsFile {
     // TODO: Sometimes a single burner occurs in two different meshes.
     for (const obst of this.meshes.flatMap((mesh) => mesh.obsts ?? [])) {
       if (obst.isBurner) {
-        const burner = new Burner(
-          this,
-          { type: "obst", object: obst },
-        );
+        const burner = new Burner(this, { type: "obst", object: obst });
         burners.push(burner);
       }
     }
     for (const vent of this.meshes.flatMap((mesh) => mesh.vents ?? [])) {
       if (vent.isBurner) {
-        const burner = new Burner(
-          this,
-          { type: "vent", object: vent },
-        );
+        const burner = new Burner(this, { type: "vent", object: vent });
         burners.push(burner);
       }
     }
@@ -696,16 +510,15 @@ export class FdsData implements FdsFile {
   }
 
   private get uniqueVents() {
-    const all: ({ vent: Vent; meshIndex: number })[] = this.meshes
-      .flatMap((mesh) => {
-        const supplies = mesh.vents.map((
-          vent,
-        ) => ({
+    const all: { vent: Vent; meshIndex: number }[] = this.meshes.flatMap(
+      (mesh) => {
+        const supplies = mesh.vents.map((vent) => ({
           vent,
           meshIndex: mesh.index,
         }));
         return supplies;
-      });
+      },
+    );
     const uniqueVents: Vent[] = [];
     // TODO: this is fairly inefficient.
     for (const { vent } of all) {
@@ -737,9 +550,7 @@ export class FdsData implements FdsFile {
   /**
    * Given the `ID` of a surface return that surface.
    */
-  public getSurface(
-    surfaceName: string,
-  ): Surf | undefined {
+  public getSurface(surfaceName: string): Surf | undefined {
     for (const surf of this.surfaces) {
       if (surf.id === surfaceName) {
         return surf;
@@ -773,7 +584,7 @@ export class FdsData implements FdsFile {
     const flow_devcs = this.devices.filter((devc) => devc.isFlowDevice);
     // Find flow devices that match the vents XB
     const trackingFlowMatchingXB = flow_devcs.filter((devc) =>
-      dimensionsMatch(vent.dimensions, devc.dimensions)
+      dimensionsMatch(vent.dimensions, devc.dimensions),
     );
     // TODO: fix hvac
     // // take only the devices which have a "DUCT_ID" parameter
@@ -811,8 +622,8 @@ export class FdsData implements FdsFile {
       return specs[0];
     } else {
       try {
-        const defSpecs: HrrSpec[] = specs.filter((x) =>
-          x !== undefined
+        const defSpecs: HrrSpec[] = specs.filter(
+          (x) => x !== undefined,
         ) as HrrSpec[];
         return addHrrSpecs(defSpecs);
       } catch {
@@ -845,12 +656,10 @@ function addHrrSpecs(hrrSpecs: HrrSpec[]): HrrSpec {
 /**
  * A Burner is an object within a model that has a specified HRR, generally an `OBST` or a `VENT`.
  */
-export class Burner {
+export class Burner extends FdsDataObject {
   private object: BurnerObst | BurnerVent;
-  constructor(
-    public fdsData: FdsData,
-    object: BurnerObst | BurnerVent,
-  ) {
+  constructor(fdsData: FdsData, object: BurnerObst | BurnerVent) {
+    super(fdsData);
     this.object = object;
   }
 
@@ -912,8 +721,8 @@ export class Burner {
   public get hrrpua(): number {
     const surfId = this.surfId;
     if (!surfId) return 0.0;
-    const surface = this.fdsData.surfaces.find((surface) =>
-      surface.id === surfId
+    const surface = this.fdsData.surfaces.find(
+      (surface) => surface.id === surfId,
     );
     if (!surface) return 0.0;
     if (surface.hrrpua) {
@@ -1031,16 +840,12 @@ function findClosestGrowthRate(
     StdGrowthRate.EurocodeUltrafast,
   ];
 
-  const std_growth_diffs: [StdGrowthRate, number][] = std_growth_rates
-    .map((
+  const std_growth_diffs: [StdGrowthRate, number][] = std_growth_rates.map(
+    (std_alpha) => [
       std_alpha,
-    ) => [
-      std_alpha,
-      Math.abs(
-        (specifiedAlpha - alpha(std_alpha)) /
-          alpha(std_alpha),
-      ),
-    ]);
+      Math.abs((specifiedAlpha - alpha(std_alpha)) / alpha(std_alpha)),
+    ],
+  );
   let min_diff = std_growth_diffs[0][1];
   let matchingGrowthRate: StdGrowthRate | undefined;
   for (const [growthRate, growth_diff] of std_growth_diffs) {
@@ -1074,19 +879,21 @@ export interface BurnerObst {
 }
 export interface BurnerVent {
   type: "vent";
-  object: IVent;
+  object: Vent;
 }
 
 /**
  * Given 2 {@link Xb}s, check if they are identical.
  */
 export function dimensionsMatch(a: Xb, b: Xb): boolean {
-  return a.x1 === b.x1 &&
+  return (
+    a.x1 === b.x1 &&
     a.x2 === b.x2 &&
     a.y1 === b.y1 &&
     a.y2 === b.y2 &&
     a.z1 === b.z1 &&
-    a.z2 === b.z2;
+    a.z2 === b.z2
+  );
 }
 
 /**
@@ -1136,9 +943,9 @@ export function intersect(a: Xb, b: Xb): boolean {
   // This epsilon value is designed to account for Pyrosims adjustments around
   // zero.
   const epsilon = 1e-14;
-  const intersect_x = (a.x2 - b.x1 > epsilon) && (b.x2 - a.x1 > epsilon);
-  const intersect_y = (a.y2 - b.y1 > epsilon) && (b.y2 - a.y1 > epsilon);
-  const intersect_z = (a.z2 - b.z1 > epsilon) && (b.z2 - a.z1 > epsilon);
+  const intersect_x = a.x2 - b.x1 > epsilon && b.x2 - a.x1 > epsilon;
+  const intersect_y = a.y2 - b.y1 > epsilon && b.y2 - a.y1 > epsilon;
+  const intersect_z = a.z2 - b.z1 > epsilon && b.z2 - a.z1 > epsilon;
   return intersect_x && intersect_y && intersect_z;
 }
 
