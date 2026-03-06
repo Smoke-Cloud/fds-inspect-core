@@ -210,12 +210,13 @@ export class Surf extends FdsDataObject {
 export class SurfLayer extends FdsDataObject {
   public index: number;
   public density: number;
+  public thickness: number;
   public materials: LayerMaterial[];
   constructor(fdsData: FdsData, surf: ISurfLayer) {
     super(fdsData);
     this.index = surf.index;
     this.density = surf.density;
-    console.log(surf.materials);
+    this.thickness = surf.thickness;
     this.materials = surf.materials.map((c) => new LayerMaterial(fdsData, c));
   }
 }

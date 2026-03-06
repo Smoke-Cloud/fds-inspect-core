@@ -156,6 +156,7 @@ export interface ISurf {
 export interface ISurfLayer {
   index: number;
   density: number;
+  thickness: number;
   materials: ILayerMaterial[];
 }
 
