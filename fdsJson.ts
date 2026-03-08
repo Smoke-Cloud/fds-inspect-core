@@ -1,12 +1,12 @@
 /** Real 3d location */
-export interface Xyz {
+export interface IXyz {
   x: number;
   y: number;
   z: number;
 }
 
 /** Real 3d rectilinear bounds */
-export interface Xb {
+export interface IXb {
   x1: number;
   x2: number;
   y1: number;
@@ -43,14 +43,14 @@ export interface IMesh {
     j: number;
     k: number;
   };
-  dimensions: Xb;
+  dimensions: IXb;
   cell_sizes: Resolution;
   vents: IVent[];
   obsts: IObst[];
 }
 
 /** Reaction information */
-export interface Reac {
+export interface IReac {
   // a: number;
   // auto_ignition_temperature: number;
   c: number;
@@ -125,7 +125,7 @@ export interface IDevc {
     z1: number;
     z2: number;
   };
-  location: Xyz;
+  location: IXyz;
   quantities: string[];
   points: DevcPoint[];
 }
@@ -176,7 +176,7 @@ export interface IMaterial {
 }
 
 /** Hvac node information */
-export interface Hvac {
+export interface IHvac {
   vent_id: string;
   vent2_id: string;
 }
@@ -195,7 +195,7 @@ export interface IProp {
 }
 
 /** Particle class information */
-export interface Part {
+export interface IPart {
   index: number;
   id: string;
   spec_id?: string;
@@ -227,10 +227,10 @@ export interface FdsFile {
   surfaces: ISurf[];
   meshes: IMesh[];
   devices: IDevc[];
-  hvac: Hvac[];
+  hvac: IHvac[];
   props: IProp[];
-  parts: Part[];
-  reacs: Reac[];
+  parts: IPart[];
+  reacs: IReac[];
 }
 
 /** Vent information */
@@ -280,24 +280,3 @@ export interface IObst {
     z: number;
   };
 }
-
-// export type HrrSpec = HrrSpecSimple | HrrSpecComposite;
-
-// export interface HrrSpecSimple {
-//   type: "simple";
-//   tau_q: number;
-//   peak: number;
-// }
-
-// export interface HrrSpecComposite {
-//   type: "composite";
-// }
-
-// export interface BurnerObst {
-//   type: "obst";
-//   object: IObst;
-// }
-// export interface BurnerVent {
-//   type: "vent";
-//   object: IVent;
-// }

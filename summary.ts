@@ -1,5 +1,12 @@
-import type { Burner, FdsData, Mesh, Obst, Vent } from "./fds.ts";
-import type { Resolution, IjkBounds, Xb } from "./fdsJson.ts";
+import {
+  type Burner,
+  type FdsData,
+  type Mesh,
+  type Obst,
+  type Vent,
+  Xb,
+} from "./fds.ts";
+import type { IjkBounds, Resolution } from "./fdsJson.ts";
 
 /** A summary of key information about an FDS input file. */
 export interface InputSummary {
@@ -250,18 +257,18 @@ export function extents(
   }
   const elems: Elem[] = [];
   for (const mesh of meshes) {
-    const meshDimensions = dimensions(axis, mesh);
+    const meshDimensions = mesh.dimensions.dimensions(axis);
     // TODO: Somehow need to account for obstructions that might be removed.
-    const area = meshArea(axis, mesh);
+    const area = mesh.meshArea(axis);
     if (includeObts) {
       for (const obst of mesh.obsts ?? []) {
         elems.push({
-          value: dimensions(axis, obst).start,
-          area: -obstArea(axis, obst),
+          value: obst.dimensions.dimensions(axis).start,
+          area: -obst.obstArea(axis),
         });
         elems.push({
-          value: dimensions(axis, obst).end,
-          area: obstArea(axis, obst),
+          value: obst.dimensions.dimensions(axis).end,
+          area: obst.obstArea(axis),
         });
       }
     }
@@ -313,14 +320,14 @@ export function extents(
  */
 export function boundingExtent(meshes: Mesh[]): Xb | undefined {
   if (!meshes[0]) return;
-  const current: Xb = {
+  const current: Xb = new Xb({
     x1: meshes[0].dimensions.x1,
     x2: meshes[0].dimensions.x2,
     y1: meshes[0].dimensions.y1,
     y2: meshes[0].dimensions.y2,
     z1: meshes[0].dimensions.z1,
     z2: meshes[0].dimensions.z2,
-  };
+  });
   for (const mesh of meshes) {
     current.x1 = Math.min(current.x1, mesh.dimensions.x1);
     current.x2 = Math.max(current.x2, mesh.dimensions.x2);
@@ -355,7 +362,7 @@ function _dimensionExtent(
       continue;
     }
     // console.log(mesh.index, mesh.id);
-    const meshDimensions = dimensions(axis, mesh);
+    const meshDimensions = mesh.dimensions.dimensions(axis);
     extents.push({
       start: meshDimensions.start,
       end: meshDimensions.end,
@@ -375,7 +382,7 @@ function _dimensionExtent(
     }
     // console.log(overlappingObsts);
     for (const obst of overlappingObsts) {
-      const obstDims = dimensions(axis, obst);
+      const obstDims = obst.dimensions.dimensions(axis);
       extents.push({
         start: obstDims.start,
         end: obstDims.end,
@@ -421,60 +428,6 @@ function clearHeights(
   // }
   vals.push(base);
   return vals;
-}
-
-function dimensions(axis: "x" | "y" | "z", value: { dimensions: Xb }) {
-  switch (axis) {
-    case "x":
-      return { start: value.dimensions.x1, end: value.dimensions.x2 };
-    case "y":
-      return { start: value.dimensions.y1, end: value.dimensions.y2 };
-    case "z":
-      return { start: value.dimensions.z1, end: value.dimensions.z2 };
-  }
-}
-
-function obstArea(axis: "x" | "y" | "z", obst: Obst) {
-  switch (axis) {
-    case "x":
-      return obst.fds_area.x;
-    case "y":
-      return obst.fds_area.y;
-    case "z":
-      return obst.fds_area.z;
-  }
-}
-
-function meshArea(axis: "x" | "y" | "z", mesh: Mesh): number {
-  switch (axis) {
-    case "x":
-      return meshAreaX(mesh);
-    case "y":
-      return meshAreaY(mesh);
-    case "z":
-      return meshAreaZ(mesh);
-  }
-}
-
-function meshAreaX(mesh: Mesh): number {
-  return (
-    (mesh.dimensions.z2 - mesh.dimensions.z1) *
-    (mesh.dimensions.y2 - mesh.dimensions.y1)
-  );
-}
-
-function meshAreaY(mesh: Mesh): number {
-  return (
-    (mesh.dimensions.x2 - mesh.dimensions.x1) *
-    (mesh.dimensions.z2 - mesh.dimensions.z1)
-  );
-}
-
-function meshAreaZ(mesh: Mesh): number {
-  return (
-    (mesh.dimensions.x2 - mesh.dimensions.x1) *
-    (mesh.dimensions.y2 - mesh.dimensions.y1)
-  );
 }
 
 function greatestExtent(
@@ -542,11 +495,13 @@ function getCeilingHeights(
  * The extents of a given mesh.
  */
 export class CellMap {
+  public mesh: Mesh;
   public extents: { start: number; end: number }[][] = [];
   public i_max: number;
   public j_max: number;
   public k_max: number;
-  constructor(public mesh: Mesh) {
+  constructor(mesh: Mesh) {
+    this.mesh = mesh;
     this.i_max = mesh.ijk.i;
     this.j_max = mesh.ijk.j;
     this.k_max = mesh.ijk.k;

@@ -1,22 +1,22 @@
 import type {
   DevcPoint,
   FdsFile,
-  Hvac,
   IDevc,
+  IHvac,
   IjkBounds,
   ILayerMaterial,
   IMaterial,
   IMesh,
   IObst,
+  IPart,
   IProp,
+  IReac,
   ISurf,
   ISurfLayer,
   IVent,
-  Part,
-  Reac,
+  IXb,
+  IXyz,
   Resolution,
-  Xb,
-  Xyz,
 } from "./fdsJson.ts";
 import type { DataVector } from "./smv.ts";
 
@@ -40,7 +40,7 @@ export class Mesh extends FdsDataObject {
     this.index = mesh.index;
     this.id = mesh.id;
     this.ijk = mesh.ijk;
-    this.dimensions = mesh.dimensions;
+    this.dimensions = new Xb(mesh.dimensions);
     this.cell_sizes = mesh.cell_sizes;
     this.vents = (mesh.vents ?? []).map((vent) => new Vent(this.fdsData, vent));
     this.obsts = (mesh.obsts ?? []).map((obst) => new Obst(this.fdsData, obst));
@@ -48,6 +48,38 @@ export class Mesh extends FdsDataObject {
   /** Get vents that have a proscribed flow associated with them (excluding burners). */
   public get flowVents(): Vent[] {
     return this.vents.filter((vent) => vent.hasFlow);
+  }
+
+  public meshArea(axis: "x" | "y" | "z"): number {
+    switch (axis) {
+      case "x":
+        return this.meshAreaX();
+      case "y":
+        return this.meshAreaY();
+      case "z":
+        return this.meshAreaZ();
+    }
+  }
+
+  public meshAreaX(): number {
+    return (
+      (this.dimensions.z2 - this.dimensions.z1) *
+      (this.dimensions.y2 - this.dimensions.y1)
+    );
+  }
+
+  public meshAreaY(): number {
+    return (
+      (this.dimensions.x2 - this.dimensions.x1) *
+      (this.dimensions.z2 - this.dimensions.z1)
+    );
+  }
+
+  public meshAreaZ(): number {
+    return (
+      (this.dimensions.x2 - this.dimensions.x1) *
+      (this.dimensions.y2 - this.dimensions.y1)
+    );
   }
 }
 
@@ -58,16 +90,9 @@ export class Devc extends FdsDataObject {
   public spatial_statistic: string;
   public spec_id: string;
   public prop_id: string;
-  public mesh: number;
+  public meshIndex: number;
   public setpoint: number;
-  public dimensions: {
-    x1: number;
-    x2: number;
-    y1: number;
-    y2: number;
-    z1: number;
-    z2: number;
-  };
+  public dimensions: Xb;
   public location: Xyz;
   public quantities: string[];
   public points: DevcPoint[];
@@ -79,12 +104,16 @@ export class Devc extends FdsDataObject {
     this.spatial_statistic = devc.spatial_statistic;
     this.spec_id = devc.spec_id;
     this.prop_id = devc.prop_id;
-    this.mesh = devc.mesh;
+    this.meshIndex = devc.mesh;
     this.setpoint = devc.setpoint;
-    this.dimensions = devc.dimensions;
-    this.location = devc.location;
+    this.dimensions = new Xb(devc.dimensions);
+    this.location = new Xyz(devc.location);
     this.quantities = devc.quantities;
     this.points = devc.points;
+  }
+
+  public get mesh(): Mesh {
+    return this.fdsData.meshes[this.meshIndex];
   }
 
   // TODO: check for flow
@@ -251,6 +280,16 @@ export class Matl extends FdsDataObject {
   }
 }
 
+export class Hvac extends FdsDataObject {
+  public vent_id: string;
+  public vent2_id: string;
+  constructor(fdsData: FdsData, hvac: IHvac) {
+    super(fdsData);
+    this.vent_id = hvac.vent_id;
+    this.vent2_id = hvac.vent2_id;
+  }
+}
+
 export class Prop extends FdsDataObject {
   public index: number;
   public id: string;
@@ -290,20 +329,65 @@ export class Prop extends FdsDataObject {
   }
 }
 
+export class Part extends FdsDataObject {
+  public index: number;
+  public id: string;
+  public spec_id?: string;
+  public devc_id?: string;
+  public ctrl_id?: string;
+  public surf_id?: string;
+  public prop_id?: string;
+  public diameter: string;
+  public monodisperse: boolean;
+  public age: number;
+  public sampling_factor: number;
+  constructor(fdsData: FdsData, part: IPart) {
+    super(fdsData);
+    this.index = part.index;
+    this.id = part.id;
+    this.spec_id = part.spec_id;
+    this.devc_id = part.devc_id;
+    this.ctrl_id = part.ctrl_id;
+    this.surf_id = part.surf_id;
+    this.prop_id = part.prop_id;
+    this.diameter = part.diameter;
+    this.monodisperse = part.monodisperse;
+    this.age = part.age;
+    this.sampling_factor = part.sampling_factor;
+  }
+}
+
+export class Reac extends FdsDataObject {
+  public c: number;
+  public co_yield: number;
+  public epumo2: number;
+  public h: number;
+  public heat_of_combustion: number;
+  public n: number;
+  public o: number;
+  public soot_h_fraction?: number;
+  public soot_yield: number;
+  constructor(fdsData: FdsData, reac: IReac) {
+    super(fdsData);
+    this.c = reac.c;
+    this.co_yield = reac.co_yield;
+    this.epumo2 = reac.epumo2;
+    this.h = reac.h;
+    this.heat_of_combustion = reac.heat_of_combustion;
+    this.n = reac.n;
+    this.o = reac.o;
+    this.soot_h_fraction = reac.soot_h_fraction;
+    this.soot_yield = reac.soot_yield;
+  }
+}
+
 export class Vent extends FdsDataObject {
   public index: number;
   public id: string;
   public surface: string;
   public devc_id: string;
   public ctrl_id: string;
-  public dimensions: {
-    x1: number;
-    x2: number;
-    y1: number;
-    y2: number;
-    z1: number;
-    z2: number;
-  };
+  public dimensions: Xb;
   public fds_area: number;
   constructor(fdsData: FdsData, vent: IVent) {
     super(fdsData);
@@ -312,7 +396,7 @@ export class Vent extends FdsDataObject {
     this.surface = vent.surface;
     this.devc_id = vent.devc_id;
     this.ctrl_id = vent.ctrl_id;
-    this.dimensions = vent.dimensions;
+    this.dimensions = new Xb(vent.dimensions);
     this.fds_area = vent.fds_area;
   }
 
@@ -394,14 +478,7 @@ export class Obst extends FdsDataObject {
   };
   public devc_id: string;
   public ctrl_id: string;
-  public dimensions: {
-    x1: number;
-    x2: number;
-    y1: number;
-    y2: number;
-    z1: number;
-    z2: number;
-  };
+  public dimensions: Xb;
   public bounds: IjkBounds;
   public fds_area: {
     x: number;
@@ -415,7 +492,7 @@ export class Obst extends FdsDataObject {
     this.surfaces = obst.surfaces;
     this.devc_id = obst.devc_id;
     this.ctrl_id = obst.ctrl_id;
-    this.dimensions = obst.dimensions;
+    this.dimensions = new Xb(obst.dimensions);
     this.bounds = obst.bounds;
     this.fds_area = obst.fds_area;
   }
@@ -453,6 +530,17 @@ export class Obst extends FdsDataObject {
     if (this.surfaces?.z_max === "INERT") return true;
     return false;
   }
+
+  public obstArea(axis: "x" | "y" | "z"): number {
+    switch (axis) {
+      case "x":
+        return this.fds_area.x;
+      case "y":
+        return this.fds_area.y;
+      case "z":
+        return this.fds_area.z;
+    }
+  }
 }
 
 export class FdsData {
@@ -481,10 +569,10 @@ export class FdsData {
     );
     this.meshes = (fdsFile.meshes ?? []).map((mesh) => new Mesh(this, mesh));
     this.devices = (fdsFile.devices ?? []).map((devc) => new Devc(this, devc));
-    this.hvac = fdsFile.hvac;
+    this.hvac = (fdsFile.hvac ?? []).map((hvac) => new Hvac(this, hvac));
     this.props = (fdsFile.props ?? []).map((prop) => new Prop(this, prop));
-    this.parts = fdsFile.parts;
-    this.reacs = fdsFile.reacs;
+    this.parts = (fdsFile.parts ?? []).map((part) => new Part(this, part));
+    this.reacs = (fdsFile.reacs ?? []).map((reac) => new Reac(this, reac));
   }
 
   /**
@@ -526,7 +614,7 @@ export class FdsData {
       let matchingVent;
       for (const existingVent of uniqueVents) {
         if (vent.id === existingVent.id) {
-          if (dimensionsMatch(vent.dimensions, existingVent.dimensions)) {
+          if (vent.dimensions.dimensionsMatch(existingVent.dimensions)) {
             matchingVent = existingVent;
             break;
           }
@@ -581,11 +669,11 @@ export class FdsData {
    * Take the xb dimensions of a vent and see if there is a flow vent with the
    * matching dimensions, or a device that references it as a duct node.
    */
-  public hasFlowDevc(vent: IVent): boolean {
+  public hasFlowDevc(vent: Vent): boolean {
     const flow_devcs = this.devices.filter((devc) => devc.isFlowDevice);
     // Find flow devices that match the vents XB
     const trackingFlowMatchingXB = flow_devcs.filter((devc) =>
-      dimensionsMatch(vent.dimensions, devc.dimensions),
+      vent.dimensions.dimensionsMatch(devc.dimensions)
     );
     // TODO: fix hvac
     // // take only the devices which have a "DUCT_ID" parameter
@@ -838,15 +926,15 @@ function findClosestGrowthRate(
 ): { growthRate: StdGrowthRate; diff: number } | undefined {
   if (hrrSpec.type === "composite") return undefined;
   const specifiedAlpha = hrrSpec.peak / 1000 / Math.abs(hrrSpec.tau_q) ** 2;
-  const std_growth_rates = [
-    StdGrowthRate.NFPASlow,
-    StdGrowthRate.NFPAFast,
-    StdGrowthRate.NFPAMedium,
-    StdGrowthRate.NFPAUltrafast,
-    StdGrowthRate.EurocodeSlow,
-    StdGrowthRate.EurocodeMedium,
-    StdGrowthRate.EurocodeFast,
-    StdGrowthRate.EurocodeUltrafast,
+  const std_growth_rates: StdGrowthRate[] = [
+    "nfpa-slow",
+    "nfpa-medium",
+    "nfpa-fast",
+    "nfpa-ultrafast",
+    "slow",
+    "medium",
+    "fast",
+    "ultrafast",
   ];
 
   const std_growth_diffs: [StdGrowthRate, number][] = std_growth_rates.map(
@@ -891,55 +979,92 @@ export interface BurnerVent {
   object: Vent;
 }
 
-/**
- * Given 2 {@link Xb}s, check if they are identical.
- */
-export function dimensionsMatch(a: Xb, b: Xb): boolean {
-  return (
-    a.x1 === b.x1 &&
-    a.x2 === b.x2 &&
-    a.y1 === b.y1 &&
-    a.y2 === b.y2 &&
-    a.z1 === b.z1 &&
-    a.z2 === b.z2
-  );
+export class Xyz {
+  public x: number;
+  public y: number;
+  public z: number;
+  constructor(xyz: IXyz) {
+    this.x = xyz.x;
+    this.y = xyz.y;
+    this.z = xyz.z;
+  }
+}
+
+export class Xb {
+  public x1: number;
+  public x2: number;
+  public y1: number;
+  public y2: number;
+  public z1: number;
+  public z2: number;
+  constructor(xb: IXb) {
+    this.x1 = xb.x1;
+    this.x2 = xb.x2;
+    this.y1 = xb.y1;
+    this.y2 = xb.y2;
+    this.z1 = xb.z1;
+    this.z2 = xb.z2;
+  }
+
+  public dimensions(axis: "x" | "y" | "z"): { start: number; end: number } {
+    switch (axis) {
+      case "x":
+        return { start: this.x1, end: this.x2 };
+      case "y":
+        return { start: this.y1, end: this.y2 };
+      case "z":
+        return { start: this.z1, end: this.z2 };
+    }
+  }
+
+  /**
+   * Given 2 {@link Xb}s, check if they are identical.
+   */
+  dimensionsMatch(b: Xb): boolean {
+    return (
+      this.x1 === b.x1 &&
+      this.x2 === b.x2 &&
+      this.y1 === b.y1 &&
+      this.y2 === b.y2 &&
+      this.z1 === b.z1 &&
+      this.z2 === b.z2
+    );
+  }
 }
 
 /**
  * Standard growth rates defined in literature.
  */
-export enum StdGrowthRate {
-  NFPASlow = "nfpa-slow",
-  NFPAMedium = "nfpa-medium",
-  NFPAFast = "nfpa-fast",
-  NFPAUltrafast = "nfpa-ultrafast",
-  EurocodeSlow = "slow",
-  EurocodeMedium = "medium",
-  EurocodeFast = "fast",
-  EurocodeUltrafast = "ultrafast",
-  // Custom(number),
-}
+export type StdGrowthRate =
+  | "nfpa-slow"
+  | "nfpa-medium"
+  | "nfpa-fast"
+  | "nfpa-ultrafast"
+  | "slow"
+  | "medium"
+  | "fast"
+  | "ultrafast";
 
 /**
  * Given a growth rate, return the corresponding alpha value.
  */
 export function alpha(growthRate: StdGrowthRate): number {
   switch (growthRate) {
-    case StdGrowthRate.NFPASlow:
+    case "nfpa-slow":
       return 1055.0 / 600 ** 2;
-    case StdGrowthRate.NFPAMedium:
+    case "nfpa-medium":
       return 1055.0 / 300 ** 2;
-    case StdGrowthRate.NFPAFast:
+    case "nfpa-fast":
       return 1055.0 / 150 ** 2;
-    case StdGrowthRate.NFPAUltrafast:
+    case "nfpa-ultrafast":
       return 1055.0 / 75 ** 2;
-    case StdGrowthRate.EurocodeSlow:
+    case "slow":
       return 1000.0 / 600 ** 2;
-    case StdGrowthRate.EurocodeMedium:
+    case "medium":
       return 1000.0 / 300 ** 2;
-    case StdGrowthRate.EurocodeFast:
+    case "fast":
       return 1000.0 / 150 ** 2;
-    case StdGrowthRate.EurocodeUltrafast:
+    case "ultrafast":
       return 1000.0 / 75 ** 2;
   }
 }

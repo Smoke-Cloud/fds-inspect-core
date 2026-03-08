@@ -5,9 +5,10 @@ import {
   findMatchingGrowthRate,
   generateHrrRelDiff,
   intersect,
+  type Reac,
   type Vent,
 } from "./fds.ts";
-import type { Reac, IVent } from "./fdsJson.ts";
+import type { IVent } from "./fdsJson.ts";
 import type { SmvData, Test, VerificationResult } from "./mod.ts";
 
 function success(message: string): VerificationResult {
@@ -208,9 +209,11 @@ export const formulaTest: Test = {
           return success(`${propName} was ${value}, a recognised value.`);
         } else {
           return failure(
-            `${propName} was ${value}, which is not one of the usual values of ${Array.from(
-              possibleValues.values(),
-            ).join(",")}.`,
+            `${propName} was ${value}, which is not one of the usual values of ${
+              Array.from(
+                possibleValues.values(),
+              ).join(",")
+            }.`,
           );
         }
       } else {
@@ -229,9 +232,11 @@ export const formulaTest: Test = {
     } else if (fdsData.reacs.length > 1) {
       test_results.push(failure("No REAC has been specified"));
     } else {
-      for (const test_result of tests.map((test) =>
-        test(fdsData, fdsData.reacs[0]),
-      )) {
+      for (
+        const test_result of tests.map((test) =>
+          test(fdsData, fdsData.reacs[0])
+        )
+      ) {
         test_results.push(test_result);
       }
     }
@@ -275,10 +280,9 @@ export const maximumVisibilityTest: Test = {
   id: "input.reac.maximumVisibility",
   stages: "in",
   func: async function (fdsData: FdsData): Promise<VerificationResult[]> {
-    const vis =
-      fdsData.ec_ll && fdsData.visibility_factor
-        ? fdsData.visibility_factor / fdsData.ec_ll
-        : undefined;
+    const vis = fdsData.ec_ll && fdsData.visibility_factor
+      ? fdsData.visibility_factor / fdsData.ec_ll
+      : undefined;
     let maximum_visibility;
     if (!vis) {
       return [failure("Maximum Visibility Not Set")];
@@ -368,7 +372,7 @@ export const flowCoverageTest: Test = {
       const issues: VerificationResult[] = notCovered.map((vent) =>
         failure(
           `Vent \`${vent.id}\` has no adequate volume flow measuring device`,
-        ),
+        )
       );
       return issues;
     }
@@ -394,7 +398,7 @@ export const deviceInSolidTest: Test = {
       return [success("No stuck devices")];
     } else {
       const issues: VerificationResult[] = stuckDevices.map((devc) =>
-        failure(`Devc ${devc.id} Positioned within solid obstruction`),
+        failure(`Devc ${devc.id} Positioned within solid obstruction`)
       );
       return issues;
     }
@@ -425,7 +429,7 @@ export const spkDetCeilingTest: Test = {
       const issues: VerificationResult[] = nonBeneathCeiling.map((devc) =>
         failure(
           `Devc \`${devc.id}\` is not immediately beneath solid obstruction`,
-        ),
+        )
       );
       return issues;
     }
@@ -476,9 +480,10 @@ export const growthRateTest: Test = {
     }
     const results: VerificationResult[] = [];
     const matchingGrowthRate = findMatchingGrowthRate(hrrSpec);
-    const info = `TAU_Q = ${hrrSpec.tau_q} s, (${matchingGrowthRate}), MaxHRR = ${
-      hrrSpec.peak / 1000
-    } kW`;
+    const info =
+      `TAU_Q = ${hrrSpec.tau_q} s, (${matchingGrowthRate}), MaxHRR = ${
+        hrrSpec.peak / 1000
+      } kW`;
     if (hrrSpec.tau_q == undefined) {
       results.push(
         warning(
@@ -576,9 +581,11 @@ export const hrrRealised: Test = {
     if (maxPeriod >= 10) {
       return [
         failure(
-          `HRR exceeds 10% bounds for greater than 10 s (${totalTime.toFixed(
-            2,
-          )} s in total for a maximum of ${maxPeriod.toFixed(2)})`,
+          `HRR exceeds 10% bounds for greater than 10 s (${
+            totalTime.toFixed(
+              2,
+            )
+          } s in total for a maximum of ${maxPeriod.toFixed(2)})`,
         ),
       ];
     } else if (occurs) {

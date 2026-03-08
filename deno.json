@@ -1,9 +1,14 @@
 {
   "name": "@smoke-cloud/fds-inspect-core",
-  "version": "0.1.24",
+  "version": "0.1.25",
   "exports": "./mod.ts",
   "license": "AGPL-3.0-or-later",
   "tasks": {
     "dev": "deno run --watch main.ts"
+  },
+  "compilerOptions": { "erasableSyntaxOnly": true },
+  "imports": {
+    "@std/csv": "jsr:@std/csv@^1.0.6",
+    "@std/path": "jsr:@std/path@^1.1.4"
   }
 }
