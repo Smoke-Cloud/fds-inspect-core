@@ -1035,36 +1035,39 @@ export class Xb {
 /**
  * Standard growth rates defined in literature.
  */
-export type StdGrowthRate =
-  | "nfpa-slow"
-  | "nfpa-medium"
-  | "nfpa-fast"
-  | "nfpa-ultrafast"
-  | "slow"
-  | "medium"
-  | "fast"
-  | "ultrafast";
+export const StdGrowthRate = {
+  NFPASlow: "nfpa-slow",
+  NFPAMedium: "nfpa-medium",
+  NFPAFast: "nfpa-fast",
+  NFPAUltrafast: "nfpa-ultrafast",
+  EurocodeSlow: "slow",
+  EurocodeMedium: "medium",
+  EurocodeFast: "fast",
+  EurocodeUltrafast: "ultrafast",
+} as const;
+
+export type StdGrowthRate = (typeof StdGrowthRate)[keyof typeof StdGrowthRate];
 
 /**
  * Given a growth rate, return the corresponding alpha value.
  */
 export function alpha(growthRate: StdGrowthRate): number {
   switch (growthRate) {
-    case "nfpa-slow":
+    case StdGrowthRate.NFPASlow:
       return 1055.0 / 600 ** 2;
-    case "nfpa-medium":
+    case StdGrowthRate.NFPAMedium:
       return 1055.0 / 300 ** 2;
-    case "nfpa-fast":
+    case StdGrowthRate.NFPAFast:
       return 1055.0 / 150 ** 2;
-    case "nfpa-ultrafast":
+    case StdGrowthRate.NFPAUltrafast:
       return 1055.0 / 75 ** 2;
-    case "slow":
+    case StdGrowthRate.EurocodeSlow:
       return 1000.0 / 600 ** 2;
-    case "medium":
+    case StdGrowthRate.EurocodeMedium:
       return 1000.0 / 300 ** 2;
-    case "fast":
+    case StdGrowthRate.EurocodeFast:
       return 1000.0 / 150 ** 2;
-    case "ultrafast":
+    case StdGrowthRate.EurocodeUltrafast:
       return 1000.0 / 75 ** 2;
   }
 }
