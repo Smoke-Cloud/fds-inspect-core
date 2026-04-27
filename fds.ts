@@ -246,7 +246,9 @@ export class SurfLayer extends FdsDataObject {
     this.index = surf.index;
     this.density = surf.density;
     this.thickness = surf.thickness;
-    this.materials = surf.materials.map((c) => new LayerMaterial(fdsData, c));
+    this.materials = (surf.materials ?? []).map(
+      (c) => new LayerMaterial(fdsData, c),
+    );
   }
 }
 

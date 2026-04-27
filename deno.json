@@ -1,6 +1,6 @@
 {
   "name": "@smoke-cloud/fds-inspect-core",
-  "version": "0.1.27",
+  "version": "0.1.28",
   "exports": "./mod.ts",
   "license": "AGPL-3.0-or-later",
   "tasks": {
