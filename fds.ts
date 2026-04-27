@@ -204,7 +204,7 @@ export class Surf extends FdsDataObject {
     this.mlrpua = surf.mlrpua;
     this.vel = surf.vel;
     this.volume_flow = surf.volume_flow;
-    this.layers = surf.layers.map((c) => new SurfLayer(fdsData, c));
+    this.layers = (surf.layers ?? []).map((c) => new SurfLayer(fdsData, c));
   }
 
   /**
