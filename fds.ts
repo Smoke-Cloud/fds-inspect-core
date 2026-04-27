@@ -563,7 +563,7 @@ export class FdsData {
     this.visibility_factor = fdsFile.visibility_factor;
     this.dump = fdsFile.dump;
     this.time = fdsFile.time;
-    this.materials = fdsFile.materials.map((c) => new Matl(this, c));
+    this.materials = (fdsFile.materials ?? []).map((c) => new Matl(this, c));
     this.surfaces = (fdsFile.surfaces ?? []).map(
       (surf) => new Surf(this, surf),
     );
@@ -673,7 +673,7 @@ export class FdsData {
     const flow_devcs = this.devices.filter((devc) => devc.isFlowDevice);
     // Find flow devices that match the vents XB
     const trackingFlowMatchingXB = flow_devcs.filter((devc) =>
-      vent.dimensions.dimensionsMatch(devc.dimensions)
+      vent.dimensions.dimensionsMatch(devc.dimensions),
     );
     // TODO: fix hvac
     // // take only the devices which have a "DUCT_ID" parameter
